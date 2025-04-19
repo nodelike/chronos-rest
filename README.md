@@ -1,6 +1,6 @@
 # Chronos REST API
 
-A RESTful API built with Express.js, Prisma, and MongoDB.
+A RESTful API built with Express.js, Prisma, MongoDB, and S3-compatible storage.
 
 ## Setup Instructions
 
@@ -14,15 +14,21 @@ A RESTful API built with Express.js, Prisma, and MongoDB.
    - Update the MongoDB connection string in `.env`
    - Set the desired `LOG_LEVEL` in `.env` (error, warn, info, http, verbose, debug, silly)
    - Configure Resend API key in `.env` for email sending
+   - Configure AWS/S3 credentials in `.env`:
+     - `AWS_REGION`
+     - `AWS_S3_ENDPOINT`
+     - `AWS_ACCESS_KEY_ID`
+     - `AWS_SECRET_ACCESS_KEY`
+     - `AWS_BUCKET_NAME`
 
 3. Generate Prisma client:
    ```
-   npx prisma generate
+   npm run prisma:generate
    ```
 
 4. Push the schema to your database:
    ```
-   npx prisma db push
+   npm run prisma:push
    ```
 
 5. Seed the database with initial settings:
@@ -50,15 +56,21 @@ src/
 │   │   ├── user.service.js
 │   │   ├── user.routes.js
 │   │   └── user.validators.js
+│   ├── StorageItem/       # Storage item model
+│   │   ├── storageItem.controller.js
+│   │   ├── storageItem.routes.js
+│   │   └── storageItem.service.js
 │   └── Product/           # Product model (example)
 ├── lib/                   # Shared utilities
 │   ├── prisma.js          # Prisma client instance
 │   ├── logger.js          # Winston logger configuration
 │   ├── auth.js            # Authentication utilities
 │   ├── emailService.js    # Email service using Resend
+│   ├── s3Service.js       # S3 storage service
 │   ├── utilsService.js    # Utility service for app settings
 │   ├── middleware/
-│   │   └── authenticate.js
+│   │   ├── authenticate.js # Authentication middleware
+│   │   └── upload.js       # File upload middleware
 │   └── helpers.js
 ├── app.js                 # Express app configuration
 └── server.js              # Server entry point
@@ -104,6 +116,45 @@ The API includes a complete authentication system with the following features:
 - **GET /auth/profile** (Protected)
   - Returns the user's profile information
   - Requires authentication
+
+## Storage System
+
+The application integrates with S3-compatible storage services for file storage:
+
+### S3 Storage Features
+- File uploads with unique IDs
+- Public and private file storage
+- Presigned URL generation for secure temporary access
+- File deletion
+
+### Storage API Endpoints
+
+All storage endpoints require authentication.
+
+- **POST /storage**
+  - Upload a file to S3 storage
+  - Requires multipart/form-data with a "file" field
+
+- **GET /storage**
+  - List all storage items for the authenticated user
+  - Returns items with presigned URLs that expire after 1 hour
+
+- **GET /storage/:id**
+  - Get details for a specific storage item
+  - Returns the item with a presigned URL that expires after 1 hour
+
+- **DELETE /storage/:id**
+  - Delete a storage item and its associated file
+
+### Storage Item Response Format
+
+Each storage item returned by the API includes:
+- Standard item metadata (id, fileName, fileSize, etc.)
+- `uri`: The original S3 URL (preserved for reference)
+- `presignedUrl`: A temporary secure URL for accessing the file, valid for 1 hour
+- For images with thumbnails:
+  - `rawMetadata.thumbnail`: The original thumbnail S3 URL (preserved for reference)
+  - `rawMetadata.thumbnailPresignedUrl`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 
 ## Settings
 

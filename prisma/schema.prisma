@@ -12,7 +12,7 @@ datasource db {
 
 // Define models below
 model User {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  id            String   @id @map("_id") @default(auto()) @db.ObjectId
   email         String   @unique
   username      String?
   password      String
@@ -26,11 +26,158 @@ model User {
 }
 
 model Utils {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
   name      String   @unique
   data      Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("utils")
+}
+
+// Enums
+enum ChronicleItemType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  AUDIO
+  EVENT
+  NOTE
+  LOCATION
+  LINK
+  SOCIAL_MEDIA
+  OTHER
+}
+
+enum CollectorType {
+  EVENT_BASED
+  PERIODIC
+  MANUAL
+}
+
+// Storage Unit: Raw & Enriched Media
+model StorageItem {
+  id              String           @id @map("_id") @default(auto()) @db.ObjectId
+  uri             String
+  fileName        String
+  fileSize        Int
+  mimeType        String
+  type            ChronicleItemType
+  source          String           // camera, twitter, linkedin, calendar, etc.
+  collectorType   CollectorType    @default(MANUAL)
+  userId          String           @db.ObjectId
+
+  createdAt       DateTime         @default(now())
+  processedAt     DateTime?
+
+  rawMetadata     Json?            // EXIF, calendar ICS, tweet payload, etc.
+
+  // sub-model enrichment
+  geoMeta         GeoMeta?         @relation(fields: [geoMetaId], references: [id])
+  geoMetaId       String?          @db.ObjectId
+
+  ocrMeta         OcrMeta?         @relation(fields: [ocrMetaId], references: [id])
+  ocrMetaId       String?          @db.ObjectId
+
+  faceMeta        FaceMeta?        @relation(fields: [faceMetaId], references: [id])
+  faceMetaId      String?          @db.ObjectId
+
+  transcriptMeta  TranscriptMeta?  @relation(fields: [transcriptMetaId], references: [id])
+  transcriptMetaId String?         @db.ObjectId
+
+  keywordMeta     KeywordMeta?     @relation(fields: [keywordMetaId], references: [id])
+  keywordMetaId   String?          @db.ObjectId
+
+  socialMeta      SocialMeta?      @relation(fields: [socialMetaId], references: [id])
+  socialMetaId    String?          @db.ObjectId
+
+  // For many-to-many relation with Chronicle
+  chronicleIds   String[]          @db.ObjectId
+  chronicles     Chronicle[]       @relation("ChronicleStorageRefs", fields: [chronicleIds], references: [id])
+
+  @@index([type])
+  @@index([processedAt])
+  @@map("storageItems")
+}
+
+// Individual metadata types
+model GeoMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  lat       Float
+  lng       Float
+  place     String?
+  storageItems StorageItem[]
+
+  @@map("geoMeta")
+}
+
+model OcrMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  text      String
+  language  String?
+  storageItems StorageItem[]
+
+  @@map("ocrMeta")
+}
+
+model FaceMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  faces     Json     // [ { name, confidence } ]
+  storageItems StorageItem[]
+
+  @@map("faceMeta")
+}
+
+model TranscriptMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  transcript String
+  language   String?
+  storageItems StorageItem[]
+
+  @@map("transcriptMeta")
+}
+
+model KeywordMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  keywords  String[]
+  storageItems StorageItem[]
+
+  @@map("keywordMeta")
+}
+
+model SocialMeta {
+  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  platform  String   // e.g., twitter, instagram, linkedin
+  postUrl   String
+  username  String
+  content   String
+  hashtags  String[]
+  storageItems StorageItem[]
+
+  @@map("socialMeta")
+}
+
+// Chronicle: The narrative + embedded references
+model Chronicle {
+  id            String         @id @map("_id") @default(auto()) @db.ObjectId
+  title         String
+  description   String?
+  tags          String[]
+  startDate     DateTime?
+  endDate       DateTime?
+  userId        String         @db.ObjectId
+
+  body          Json           // markdown or portable text with embedded StorageItem IDs
+  
+  // For many-to-many relation with StorageItem
+  storageItemIds String[]      @db.ObjectId
+  referencedStorageItems StorageItem[] @relation("ChronicleStorageRefs", fields: [storageItemIds], references: [id])
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([title])
+  @@index([tags])
+  @@index([startDate, endDate])
+  @@map("chronicles")
 }

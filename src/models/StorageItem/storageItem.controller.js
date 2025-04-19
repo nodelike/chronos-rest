@@ -1,0 +1,92 @@
+import { createStorageItem, getStorageItemById, getStorageItems, deleteStorageItem } from "./storageItem.service.js";
+import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
+import logger from "../../lib/logger.js";
+
+export const uploadStorageItem = async (req, res, next) => {
+    try {
+        if (!req.file) {
+            throw new BadRequestError("No file uploaded");
+        }
+
+        const userId = req.user.id;
+
+        const storageItem = await createStorageItem(req.file.buffer, req.file, userId);
+
+        return res.status(201).json(successResponse("Storage item created successfully", { storageItem }, 201));
+    } catch (error) {
+        logger.error("Error uploading storage item:", error);
+        next(error);
+    }
+};
+
+export const getStorageItem = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const storageItem = await getStorageItemById(id);
+
+        if (!storageItem) {
+            throw new NotFoundError(`Storage item with ID ${id} not found`);
+        }
+
+        // Verify ownership (optional - depends on your requirements)
+        if (storageItem.userId !== req.user.id) {
+            return res.status(403).json(errorResponse("You don't have permission to access this storage item", 403));
+        }
+
+        return res.status(200).json(successResponse("Storage item retrieved successfully", { storageItem }));
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getAllStorageItems = async (req, res, next) => {
+    try {
+        const { page, limit, type, source, startDate, endDate, keyword } = req.query;
+
+        const userId = req.user.id;
+
+        const result = await getStorageItems({
+            page: page ? parseInt(page) : undefined,
+            limit: limit ? parseInt(limit) : undefined,
+            type,
+            userId,
+            source,
+            startDate,
+            endDate,
+            keyword,
+        });
+
+        return res.status(200).json(successResponse("Storage items retrieved successfully", result));
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const removeStorageItem = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        // Delete storage item
+        const result = await deleteStorageItem(id, userId);
+
+        if (!result.success) {
+            if (result.message === "Storage item not found") {
+                throw new NotFoundError(`Storage item with ID ${id} not found`);
+            }
+            return res.status(403).json(errorResponse(result.message, 403));
+        }
+
+        return res.status(200).json(successResponse("Storage item deleted successfully"));
+    } catch (error) {
+        next(error);
+    }
+};
+
+export default {
+    uploadStorageItem,
+    getStorageItem,
+    getAllStorageItems,
+    removeStorageItem,
+};
