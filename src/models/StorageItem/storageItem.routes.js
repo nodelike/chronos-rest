@@ -8,7 +8,7 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-router.post("/", uploadSingle("file"), uploadStorageItem);
+router.post("/file", uploadSingle("file"), uploadStorageItem);
 router.get("/", getAllStorageItems);
 router.get("/:id", getStorageItem);
 router.delete("/:id", removeStorageItem);
