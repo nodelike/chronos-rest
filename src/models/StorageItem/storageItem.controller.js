@@ -68,7 +68,6 @@ export const removeStorageItem = async (req, res, next) => {
         const { id } = req.params;
         const userId = req.user.id;
 
-        // Delete storage item
         const result = await deleteStorageItem(id, userId);
 
         if (!result.success) {

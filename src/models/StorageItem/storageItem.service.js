@@ -41,8 +41,6 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
             },
         });
 
-        logger.info(`Created storage item: ${storageItem.id}`);
-
         return storageItem;
     } catch (error) {
         logger.error("Error creating storage item:", error);
@@ -58,7 +56,6 @@ export const getStorageItemById = async (id) => {
         
         if (!item) return null;
         
-        // Add presigned URLs for the item and its thumbnail
         return await replaceWithPresignedUrls(item);
     } catch (error) {
         logger.error(`Error getting storage item ${id}:`, error);
@@ -119,7 +116,6 @@ export const getStorageItems = async (options = {}) => {
 
 export const deleteStorageItem = async (id, userId) => {
     try {
-        // Get the storage item
         const storageItem = await prisma.storageItem.findUnique({
             where: { id },
         });
@@ -128,18 +124,13 @@ export const deleteStorageItem = async (id, userId) => {
             return { success: false, message: "Storage item not found" };
         }
 
-        // Check if the user owns the item
         if (storageItem.userId !== userId) {
             return { success: false, message: "You don't have permission to delete this item" };
         }
 
-        // Extract the key from the URI
         const key = extractKeyFromUri(storageItem.uri);
 
-        // Delete the file from S3
         await deleteFile(key);
-
-        // Delete thumbnail if it exists
         if (storageItem.rawMetadata && storageItem.rawMetadata.thumbnail) {
             const thumbnailKey = extractKeyFromUri(storageItem.rawMetadata.thumbnail);
             if (thumbnailKey) {
@@ -147,12 +138,9 @@ export const deleteStorageItem = async (id, userId) => {
             }
         }
 
-        // Delete from database
         await prisma.storageItem.delete({
             where: { id },
         });
-
-        logger.info(`Deleted storage item: ${id}`);
 
         return { success: true, message: "Storage item deleted successfully" };
     } catch (error) {

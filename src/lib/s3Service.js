@@ -32,8 +32,6 @@ export const uploadFile = async (buffer, originalName, mimeType, folder = "uploa
 
         const url = `${process.env.AWS_S3_ENDPOINT}/${bucketName}/${fileName}`;
 
-        logger.info(`File uploaded successfully to ${url}`);
-
         return {
             success: true,
             url,
@@ -55,8 +53,6 @@ export const deleteFile = async (key) => {
         });
 
         await s3Client.send(command);
-
-        logger.info(`File deleted successfully: ${key}`);
 
         return {
             success: true,
