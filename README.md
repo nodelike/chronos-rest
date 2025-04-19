@@ -67,6 +67,7 @@ src/
 │   ├── auth.js            # Authentication utilities
 │   ├── emailService.js    # Email service using Resend
 │   ├── s3Service.js       # S3 storage service
+│   ├── imageMetadataService.js # Image processing and metadata extraction
 │   ├── utilsService.js    # Utility service for app settings
 │   ├── middleware/
 │   │   ├── authenticate.js # Authentication middleware
@@ -150,11 +151,90 @@ All storage endpoints require authentication.
 
 Each storage item returned by the API includes:
 - Standard item metadata (id, fileName, fileSize, etc.)
-- `uri`: The original S3 URL (preserved for reference)
-- `presignedUrl`: A temporary secure URL for accessing the file, valid for 1 hour
+- `uri`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 - For images with thumbnails:
-  - `rawMetadata.thumbnail`: The original thumbnail S3 URL (preserved for reference)
-  - `rawMetadata.thumbnailPresignedUrl`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
+  - `rawMetadata.thumbnail`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
+
+## Current Implementation Status
+
+### Metadata Enrichment
+
+Currently, the system implements basic metadata extraction for image files:
+
+- **Image Processing** (`imageMetadataService.js`):
+  - Basic metadata extraction (format, width, height, color space, channels, etc.)
+  - Thumbnail generation (resized to 300x300px max while maintaining aspect ratio)
+  - EXIF data extraction framework (in place but not fully implemented)
+  - Placeholder for GPS data extraction from EXIF (structure ready but not implemented)
+
+- **Storage Type Detection** (`storageItem.service.js`):
+  - Automatic content type detection for:
+    - Photos (image/*)
+    - Videos (video/*)
+    - Audio (audio/*)
+    - Documents (pdf, msword, excel, etc.)
+    - Other (fallback)
+
+- **Manual Upload Pipeline**:
+  - Currently only manual uploads are supported
+  - Files are uploaded to S3 storage
+  - Basic metadata is extracted and stored
+  - Thumbnails are generated for images
+
+### Database Schema
+
+The database schema (`schema.prisma`) includes models for:
+
+- **User**: Authentication and user profile information
+- **Utils**: Application settings
+- **StorageItem**: Core storage model with relations to metadata models
+- Various metadata models prepared for future implementation:
+  - **GeoMeta**: Geographic data
+  - **OcrMeta**: Text extraction
+  - **FaceMeta**: Face detection
+  - **TranscriptMeta**: Audio transcription
+  - **KeywordMeta**: Automatic keyword generation
+  - **SocialMeta**: Social media content
+  - **Chronicle**: Top-level grouping of related storage items
+
+## Features To Be Implemented
+
+### Metadata Enrichment Pipeline
+
+1. **Complete the enrichment pipeline for existing metadata types**:
+   - Implement full EXIF data parsing and GPS extraction for images
+   - Add OCR processing for documents and images
+   - Implement face detection and recognition
+   - Add audio transcription for audio/video files
+   - Add keyword extraction and tagging
+
+2. **Collection Pipeline**:
+   - Implement event-based collectors (responding to specific triggers)
+   - Add periodic collection capabilities (scheduled tasks)
+   - The manual upload pipeline is already implemented
+
+### Storage Search
+
+Implement search capabilities for finding items based on:
+- File content (OCR text)
+- Metadata (format, size, etc.)
+- Extracted information (faces, locations, keywords)
+- Time periods
+
+### Chronicle System
+
+1. **Chronicle Creation**:
+   - API endpoints for creating, updating, and deleting chronicles
+   - Ability to group storage items into meaningful collections
+   - Adding metadata to chronicles (title, description, tags, time range)
+
+2. **Chronicle Relationships**:
+   - Define connections between related chronicles
+   - Support for nested chronicles or sub-chronicles
+
+3. **Chronicle Search**:
+   - Search functionality for finding chronicles
+   - Filtering by metadata, content, time periods
 
 ## Settings
 
