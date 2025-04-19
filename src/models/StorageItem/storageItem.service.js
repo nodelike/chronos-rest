@@ -37,7 +37,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
                 collectorType: "MANUAL",
                 userId,
                 rawMetadata,
-                processedAt: new Date(),
+                processedAt: null,
             },
         });
 
