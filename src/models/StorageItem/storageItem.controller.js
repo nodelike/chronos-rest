@@ -1,11 +1,11 @@
-import { createStorageItem, getStorageItemById, getStorageItems, deleteStorageItem } from "./storageItem.service.js";
+import { createStorageItem, getStorageItemById, getStorageItems, deleteStorageItem, createNonFileStorageItem } from "./storageItem.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
 
 export const uploadStorageItem = async (req, res, next) => {
     try {
         if (!req.file) {
-            throw new BadRequestError("No file uploaded");
+            throw new BadRequestError("No file uploaded. Use the /storage/item endpoint for non-file items.");
         }
 
         const userId = req.user.id;
@@ -29,7 +29,6 @@ export const getStorageItem = async (req, res, next) => {
             throw new NotFoundError(`Storage item with ID ${id} not found`);
         }
 
-        // Verify ownership (optional - depends on your requirements)
         if (storageItem.userId !== req.user.id) {
             return res.status(403).json(errorResponse("You don't have permission to access this storage item", 403));
         }
@@ -83,9 +82,71 @@ export const removeStorageItem = async (req, res, next) => {
     }
 };
 
+export const createNonFileItem = async (req, res, next) => {
+    try {
+        const { type, title, content, url, metadata } = req.body;
+        
+        if (!type) {
+            throw new BadRequestError("Item type is required");
+        }
+        
+        const validTypes = ["EVENT", "NOTE", "LOCATION", "LINK", "SOCIAL_MEDIA"];
+        if (!validTypes.includes(type)) {
+            throw new BadRequestError(`Invalid item type. Must be one of: ${validTypes.join(', ')}`);
+        }
+        
+        switch (type) {
+            case "EVENT":
+                if (!title || !content) {
+                    throw new BadRequestError("Title and content are required for EVENT items");
+                }
+                break;
+            case "NOTE":
+                if (!content) {
+                    throw new BadRequestError("Content is required for NOTE items");
+                }
+                break;
+            case "LOCATION":
+                if (!metadata || !metadata.lat || !metadata.lng) {
+                    throw new BadRequestError("Location metadata (lat, lng) is required for LOCATION items");
+                }
+                break;
+            case "LINK":
+                if (!url) {
+                    throw new BadRequestError("URL is required for LINK items");
+                }
+                break;
+            case "SOCIAL_MEDIA":
+                if (!url || !metadata || !metadata.platform) {
+                    throw new BadRequestError("URL and platform are required for SOCIAL_MEDIA items");
+                }
+                break;
+        }
+
+        const userId = req.user.id;
+        
+        const itemData = {
+            type,
+            title,
+            content,
+            url,
+            metadata: metadata || {},
+            userId
+        };
+
+        const storageItem = await createNonFileStorageItem(itemData);
+
+        return res.status(201).json(successResponse("Storage item created successfully", { storageItem }, 201));
+    } catch (error) {
+        logger.error("Error creating non-file storage item:", error);
+        next(error);
+    }
+};
+
 export default {
     uploadStorageItem,
     getStorageItem,
     getAllStorageItems,
     removeStorageItem,
+    createNonFileItem
 };

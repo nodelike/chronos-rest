@@ -81,10 +81,28 @@ export const getStorageItems = async (options = {}) => {
             if (endDate) where.createdAt.lte = new Date(endDate);
         }
 
-        // Keyword search (simple implementation) - need to improve
+        // Enhanced keyword search for both file and non-file items
         if (keyword) {
-            where.OR = [{ fileName: { contains: keyword, mode: "insensitive" } }];
+            where.OR = [
+                { fileName: { contains: keyword, mode: "insensitive" } },
+                // Search in rawMetadata JSON fields
+                {
+                    rawMetadata: {
+                        path: ["title"],
+                        string_contains: keyword
+                    }
+                },
+                {
+                    rawMetadata: {
+                        path: ["content"],
+                        string_contains: keyword
+                    }
+                },
+                // Include URIs for link type items
+                { uri: { contains: keyword, mode: "insensitive" } }
+            ];
         }
+        
         const totalCount = await prisma.storageItem.count({ where });
 
         const items = await prisma.storageItem.findMany({
@@ -92,6 +110,15 @@ export const getStorageItems = async (options = {}) => {
             skip,
             take: limit,
             orderBy: { createdAt: "desc" },
+            include: {
+                // Include related metadata for richer search results
+                geoMeta: true,
+                ocrMeta: true,
+                faceMeta: true,
+                transcriptMeta: true,
+                keywordMeta: true,
+                socialMeta: true
+            }
         });
         
         // Add presigned URLs to all items and their thumbnails
@@ -128,14 +155,59 @@ export const deleteStorageItem = async (id, userId) => {
             return { success: false, message: "You don't have permission to delete this item" };
         }
 
-        const key = extractKeyFromUri(storageItem.uri);
-
-        await deleteFile(key);
-        if (storageItem.rawMetadata && storageItem.rawMetadata.thumbnail) {
-            const thumbnailKey = extractKeyFromUri(storageItem.rawMetadata.thumbnail);
-            if (thumbnailKey) {
-                await deleteFile(thumbnailKey);
+        // Only delete files for file-based types (PHOTO, VIDEO, AUDIO, DOCUMENT)
+        // Non-file types like EVENT, NOTE, LOCATION don't have files to delete
+        const fileBasedTypes = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
+        
+        if (fileBasedTypes.includes(storageItem.type) && storageItem.uri) {
+            const key = extractKeyFromUri(storageItem.uri);
+            if (key) {
+                await deleteFile(key);
             }
+            
+            // Delete thumbnail if it exists
+            if (storageItem.rawMetadata && storageItem.rawMetadata.thumbnail) {
+                const thumbnailKey = extractKeyFromUri(storageItem.rawMetadata.thumbnail);
+                if (thumbnailKey) {
+                    await deleteFile(thumbnailKey);
+                }
+            }
+        }
+
+        if (storageItem.geoMetaId) {
+            await prisma.geoMeta.delete({
+                where: { id: storageItem.geoMetaId }
+            });
+        }
+
+        if (storageItem.ocrMetaId) {
+            await prisma.ocrMeta.delete({
+                where: { id: storageItem.ocrMetaId }
+            });
+        }
+
+        if (storageItem.faceMetaId) {
+            await prisma.faceMeta.delete({
+                where: { id: storageItem.faceMetaId }
+            });
+        }
+
+        if (storageItem.transcriptMetaId) {
+            await prisma.transcriptMeta.delete({
+                where: { id: storageItem.transcriptMetaId }
+            });
+        }
+
+        if (storageItem.keywordMetaId) {
+            await prisma.keywordMeta.delete({
+                where: { id: storageItem.keywordMetaId }
+            });
+        }
+
+        if (storageItem.socialMetaId) {
+            await prisma.socialMeta.delete({
+                where: { id: storageItem.socialMetaId }
+            });
         }
 
         await prisma.storageItem.delete({
@@ -146,6 +218,78 @@ export const deleteStorageItem = async (id, userId) => {
     } catch (error) {
         logger.error(`Error deleting storage item ${id}:`, error);
         return { success: false, message: "Error deleting storage item" };
+    }
+};
+
+export const createNonFileStorageItem = async (itemData) => {
+    try {
+        const { type, title, content, url, metadata, userId } = itemData;
+        
+        let fileName = title || "Untitled";
+        let mimeType = "application/json";
+        let fileSize = 0;
+        
+        let uri = url || "";
+        
+        let rawMetadata = { 
+            ...metadata,
+            title,
+            content
+        };
+        
+        if (type === "EVENT" && metadata) {
+            if (metadata.startTime) rawMetadata.startTime = metadata.startTime;
+            if (metadata.endTime) rawMetadata.endTime = metadata.endTime;
+            if (metadata.location) rawMetadata.location = metadata.location;
+        }
+        
+        if (type === "LOCATION" && metadata && metadata.lat && metadata.lng) {
+            const geoMeta = await prisma.geoMeta.create({
+                data: {
+                    lat: parseFloat(metadata.lat),
+                    lng: parseFloat(metadata.lng),
+                    place: metadata.place || null
+                }
+            });
+            
+            const storageItem = await prisma.storageItem.create({
+                data: {
+                    uri,
+                    fileName,
+                    fileSize,
+                    mimeType,
+                    type,
+                    source: "MANUAL_INPUT",
+                    collectorType: "MANUAL",
+                    userId,
+                    rawMetadata,
+                    geoMetaId: geoMeta.id,
+                    processedAt: null,
+                }
+            });
+            
+            return storageItem;
+        }
+        
+        const storageItem = await prisma.storageItem.create({
+            data: {
+                uri,
+                fileName,
+                fileSize,
+                mimeType,
+                type,
+                source: "MANUAL_INPUT",
+                collectorType: "MANUAL",
+                userId,
+                rawMetadata,
+                processedAt: null,
+            }
+        });
+        
+        return storageItem;
+    } catch (error) {
+        logger.error("Error creating non-file storage item:", error);
+        throw error;
     }
 };
 
@@ -170,4 +314,5 @@ export default {
     getStorageItemById,
     getStorageItems,
     deleteStorageItem,
+    createNonFileStorageItem
 };
