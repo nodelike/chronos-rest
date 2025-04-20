@@ -114,10 +114,18 @@ export const getStorageItems = async (options = {}) => {
                 // Include related metadata for richer search results
                 geoMeta: true,
                 ocrMeta: true,
-                faceMeta: true,
+                faceDetections: {
+                    include: {
+                        person: true
+                    }
+                },
                 transcriptMeta: true,
                 keywordMeta: true,
-                socialMeta: true
+                socialMetas: {
+                    include: {
+                        authorProfile: true
+                    }
+                }
             }
         });
         
@@ -145,6 +153,10 @@ export const deleteStorageItem = async (id, userId) => {
     try {
         const storageItem = await prisma.storageItem.findUnique({
             where: { id },
+            include: {
+                faceDetections: true,
+                socialMetas: true
+            }
         });
 
         if (!storageItem) {
@@ -174,6 +186,31 @@ export const deleteStorageItem = async (id, userId) => {
             }
         }
 
+        // Delete related face detections
+        if (storageItem.faceDetections && storageItem.faceDetections.length > 0) {
+            await prisma.faceDetection.deleteMany({
+                where: { 
+                    storageItemId: id 
+                }
+            });
+        }
+
+        // With PostgreSQL, we no longer need to manually handle the many-to-many relationship
+        // Just disconnect the relationships by updating the socialMetas
+        if (storageItem.socialMetas && storageItem.socialMetas.length > 0) {
+            // This will automatically handle the junction table
+            for (const socialMeta of storageItem.socialMetas) {
+                await prisma.socialMeta.update({
+                    where: { id: socialMeta.id },
+                    data: {
+                        attachments: {
+                            disconnect: { id }
+                        }
+                    }
+                });
+            }
+        }
+
         if (storageItem.geoMetaId) {
             await prisma.geoMeta.delete({
                 where: { id: storageItem.geoMetaId }
@@ -186,12 +223,6 @@ export const deleteStorageItem = async (id, userId) => {
             });
         }
 
-        if (storageItem.faceMetaId) {
-            await prisma.faceMeta.delete({
-                where: { id: storageItem.faceMetaId }
-            });
-        }
-
         if (storageItem.transcriptMetaId) {
             await prisma.transcriptMeta.delete({
                 where: { id: storageItem.transcriptMetaId }
@@ -201,12 +232,6 @@ export const deleteStorageItem = async (id, userId) => {
         if (storageItem.keywordMetaId) {
             await prisma.keywordMeta.delete({
                 where: { id: storageItem.keywordMetaId }
-            });
-        }
-
-        if (storageItem.socialMetaId) {
-            await prisma.socialMeta.delete({
-                where: { id: storageItem.socialMetaId }
             });
         }
 

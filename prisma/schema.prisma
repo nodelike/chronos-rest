@@ -6,13 +6,13 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // Define models below
 model User {
-  id            String   @id @map("_id") @default(auto()) @db.ObjectId
+  id            String   @id @default(uuid())
   email         String   @unique
   username      String?
   password      String
@@ -26,7 +26,7 @@ model User {
 }
 
 model Utils {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String   @id @default(uuid())
   name      String   @unique
   data      Json
   createdAt DateTime @default(now())
@@ -55,9 +55,24 @@ enum CollectorType {
   MANUAL
 }
 
+enum SocialPlatform {
+  TWITTER
+  INSTAGRAM
+  LINKEDIN
+  OTHER
+}
+
+enum PersonRelationType {
+  FRIEND
+  COLLEAGUE
+  FAMILY
+  FOLLOWER
+  OTHER
+}
+
 // Storage Unit: Raw & Enriched Media
 model StorageItem {
-  id              String           @id @map("_id") @default(auto()) @db.ObjectId
+  id              String           @id @default(uuid())
   uri             String
   fileName        String
   fileSize        Int
@@ -65,7 +80,7 @@ model StorageItem {
   type            ChronicleItemType
   source          String           // camera, twitter, linkedin, calendar, etc.
   collectorType   CollectorType    @default(MANUAL)
-  userId          String           @db.ObjectId
+  userId          String
 
   createdAt       DateTime         @default(now())
   processedAt     DateTime?
@@ -74,104 +89,171 @@ model StorageItem {
 
   // sub-model enrichment
   geoMeta         GeoMeta?         @relation(fields: [geoMetaId], references: [id])
-  geoMetaId       String?          @db.ObjectId
+  geoMetaId       String?          @unique
 
   ocrMeta         OcrMeta?         @relation(fields: [ocrMetaId], references: [id])
-  ocrMetaId       String?          @db.ObjectId
-
-  faceMeta        FaceMeta?        @relation(fields: [faceMetaId], references: [id])
-  faceMetaId      String?          @db.ObjectId
+  ocrMetaId       String?          @unique
 
   transcriptMeta  TranscriptMeta?  @relation(fields: [transcriptMetaId], references: [id])
-  transcriptMetaId String?         @db.ObjectId
+  transcriptMetaId String?         @unique
 
   keywordMeta     KeywordMeta?     @relation(fields: [keywordMetaId], references: [id])
-  keywordMetaId   String?          @db.ObjectId
+  keywordMetaId   String?          @unique
 
-  socialMeta      SocialMeta?      @relation(fields: [socialMetaId], references: [id])
-  socialMetaId    String?          @db.ObjectId
+  // face detections now link directly to Person
+  faceDetections  FaceDetection[]
+
+  // Used as profile pictures for Person - one-to-one relation
+  profileFor      Person?
+
+  // For many-to-many relation with SocialMeta (simplified for PostgreSQL)
+  socialMetas     SocialMeta[]     
 
   // For many-to-many relation with Chronicle
-  chronicleIds   String[]          @db.ObjectId
-  chronicles     Chronicle[]       @relation("ChronicleStorageRefs", fields: [chronicleIds], references: [id])
+  chronicles      Chronicle[]      @relation("ChronicleStorageRefs")
 
   @@index([type])
   @@index([processedAt])
-  @@map("storageItems")
+  @@map("storage_items")
 }
 
 // Individual metadata types
 model GeoMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String      @id @default(uuid())
   lat       Float
   lng       Float
   place     String?
-  storageItems StorageItem[]
+  storageItem StorageItem?
 
-  @@map("geoMeta")
+  @@map("geo_meta")
 }
 
 model OcrMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String      @id @default(uuid())
   text      String
   language  String?
-  storageItems StorageItem[]
+  storageItem StorageItem?
 
-  @@map("ocrMeta")
-}
-
-model FaceMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
-  faces     Json     // [ { name, confidence } ]
-  storageItems StorageItem[]
-
-  @@map("faceMeta")
+  @@map("ocr_meta")
 }
 
 model TranscriptMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String      @id @default(uuid())
   transcript String
   language   String?
-  storageItems StorageItem[]
+  storageItem StorageItem?
 
-  @@map("transcriptMeta")
+  @@map("transcript_meta")
 }
 
 model KeywordMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
+  id        String      @id @default(uuid())
   keywords  String[]
-  storageItems StorageItem[]
+  storageItem StorageItem?
 
-  @@map("keywordMeta")
+  @@map("keyword_meta")
 }
 
-model SocialMeta {
-  id        String   @id @map("_id") @default(auto()) @db.ObjectId
-  platform  String   // e.g., twitter, instagram, linkedin
-  postUrl   String
-  username  String
-  content   String
-  hashtags  String[]
-  storageItems StorageItem[]
+// Each detected face instance links a StorageItem to a Person
+model FaceDetection {
+  id              String     @id @default(uuid())
+  confidence      Float      // 0.0–1.0
+  boundingBox     Json?      // optionally store { x, y, width, height }
+  storageItem     StorageItem @relation(fields: [storageItemId], references: [id])
+  storageItemId   String
+  person          Person     @relation(fields: [personId], references: [id])
+  personId        String
+  createdAt       DateTime   @default(now())
 
-  @@map("socialMeta")
+  @@map("face_detections")
+}
+
+// A canonical person in your system
+model Person {
+  id                  String             @id @default(uuid())
+  name                String
+  aliases             String[]
+
+  profilePicture      StorageItem?       @relation(fields: [profilePictureId], references: [id])
+  profilePictureId    String?            @unique
+
+  socialProfiles      SocialProfile[]
+
+  faceDetections      FaceDetection[]
+
+  relationsFrom       PersonRelation[]   @relation("RelationFrom")
+  relationsTo         PersonRelation[]   @relation("RelationTo")
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("people")
+}
+
+// Link two People together (friend, colleague, etc.)
+model PersonRelation {
+  id               String             @id @default(uuid())
+  fromPerson       Person             @relation("RelationFrom", fields: [fromId], references: [id])
+  fromId           String
+  toPerson         Person             @relation("RelationTo", fields: [toId], references: [id])
+  toId             String
+  type             PersonRelationType
+  createdAt        DateTime           @default(now())
+
+  @@map("person_relations")
+}
+
+// The real person's account on a social platform
+model SocialProfile {
+  id               String         @id @default(uuid())
+  platform         SocialPlatform
+  handle           String         // e.g. "@jane_doe"
+  profileUrl       String
+  bio              String?
+  person           Person         @relation(fields: [personId], references: [id])
+  personId         String
+  posts            SocialMeta[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("social_profiles")
+}
+
+// A single fetched post (tweet, IG post, LinkedIn update…)
+model SocialMeta {
+  id                String           @id @default(uuid())
+  platform          SocialPlatform
+  postUrl           String
+  content           String
+  hashtags          String[]
+  postedAt          DateTime         @default(now())
+  authorProfile     SocialProfile?   @relation(fields: [authorProfileId], references: [id])
+  authorProfileId   String?
+
+  // Simplified for PostgreSQL - direct many-to-many
+  attachments       StorageItem[]
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@map("social_meta")
 }
 
 // Chronicle: The narrative + embedded references
 model Chronicle {
-  id            String         @id @map("_id") @default(auto()) @db.ObjectId
+  id            String         @id @default(uuid())
   title         String
   description   String?
   tags          String[]
   startDate     DateTime?
   endDate       DateTime?
-  userId        String         @db.ObjectId
+  userId        String
 
   body          Json           // markdown or portable text with embedded StorageItem IDs
   
-  // For many-to-many relation with StorageItem
-  storageItemIds String[]      @db.ObjectId
-  referencedStorageItems StorageItem[] @relation("ChronicleStorageRefs", fields: [storageItemIds], references: [id])
+  // For many-to-many relation with StorageItem (simplified for PostgreSQL)
+  referencedStorageItems StorageItem[] @relation("ChronicleStorageRefs")
 
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
