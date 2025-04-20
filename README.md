@@ -1,6 +1,6 @@
 # Chronos REST API
 
-A RESTful API built with Express.js, Prisma, MongoDB, and S3-compatible storage.
+A RESTful API built with Express.js, Prisma, PostgreSQL, and S3-compatible storage.
 
 ## Setup Instructions
 
@@ -11,7 +11,7 @@ A RESTful API built with Express.js, Prisma, MongoDB, and S3-compatible storage.
 
 2. Configure environment variables:
    - Copy `.env.example` to `.env` (if provided)
-   - Update the MongoDB connection string in `.env`
+   - Update the PostgreSQL connection string in `.env` as `DATABASE_URL`
    - Set the desired `LOG_LEVEL` in `.env` (error, warn, info, http, verbose, debug, silly)
    - Configure Resend API key in `.env` for email sending
    - Configure AWS/S3 credentials in `.env`:
@@ -20,6 +20,8 @@ A RESTful API built with Express.js, Prisma, MongoDB, and S3-compatible storage.
      - `AWS_ACCESS_KEY_ID`
      - `AWS_SECRET_ACCESS_KEY`
      - `AWS_BUCKET_NAME`
+   - Configure RabbitMQ in `.env`:
+     - `RABBITMQ_URL`
 
 3. Generate Prisma client:
    ```
@@ -157,6 +159,14 @@ Each storage item returned by the API includes:
 
 ## Current Implementation Status
 
+### Database Migration
+
+- Migrated from MongoDB to PostgreSQL for better relational data support
+- Updated schema to leverage PostgreSQL's capabilities:
+  - Foreign key constraints
+  - One-to-one, one-to-many, and many-to-many relationships
+  - Improved indexing
+
 ### Metadata Enrichment
 
 Currently, the system implements basic metadata extraction for image files:
@@ -181,37 +191,93 @@ Currently, the system implements basic metadata extraction for image files:
   - Basic metadata is extracted and stored
   - Thumbnails are generated for images
 
-### Database Schema
+### Enhanced Data Models
 
-The database schema (`schema.prisma`) includes models for:
+The database schema now includes expanded models for:
 
-- **User**: Authentication and user profile information
-- **Utils**: Application settings
-- **StorageItem**: Core storage model with relations to metadata models
-- Various metadata models prepared for future implementation:
-  - **GeoMeta**: Geographic data
-  - **OcrMeta**: Text extraction
-  - **FaceMeta**: Face detection
-  - **TranscriptMeta**: Audio transcription
-  - **KeywordMeta**: Automatic keyword generation
-  - **SocialMeta**: Social media content
-  - **Chronicle**: Top-level grouping of related storage items
+- **Person Management**:
+  - Person profiles with name and aliases
+  - Face detection linking to persons
+  - Social profiles for each person
+  - Person relationships (friend, colleague, family, etc.)
+
+- **Social Media Integration**:
+  - Social platform types (Twitter, Instagram, LinkedIn, etc.)
+  - Social posts with content, hashtags, and posted date
+  - Links between social posts and attachments
+
+- **Metadata Models**:
+  - Same core metadata models with improved relationships
+  - Changed to one-to-one relationships for efficiency
+
+## Microservice Architecture (In Progress)
+
+### RabbitMQ Integration
+
+The system now includes RabbitMQ integration for asynchronous processing:
+
+- Configured via `RABBITMQ_URL` environment variable
+- Will be used for message passing between services
+
+### Planned Enrichment Microservice
+
+A separate Python-based microservice is planned for enhanced metadata enrichment:
+
+- Will consume messages from RabbitMQ queues
+- Focused on AI-driven metadata extraction
+- Separate from the main Express API
+- Specialized for compute-intensive tasks
+
+#### Planned Capabilities
+
+The enrichment microservice will handle:
+
+1. **Advanced Image Processing**:
+   - Face detection and recognition
+   - Object detection
+   - Scene classification
+   - Full EXIF and GPS data extraction
+
+2. **Document Processing**:
+   - OCR for text extraction
+   - Document classification
+   - Content summarization
+
+3. **Audio/Video Processing**:
+   - Speech-to-text transcription
+   - Speaker identification
+   - Content analysis
+
+4. **Text Analysis**:
+   - Named entity recognition
+   - Keyword extraction
+   - Sentiment analysis
+   - Topic modeling
 
 ## Features To Be Implemented
 
-### Metadata Enrichment Pipeline
+### Core API Enhancements
 
-1. **Complete the enrichment pipeline for existing metadata types**:
-   - Implement full EXIF data parsing and GPS extraction for images
-   - Add OCR processing for documents and images
-   - Implement face detection and recognition
-   - Add audio transcription for audio/video files
-   - Add keyword extraction and tagging
+1. **RabbitMQ Producer**:
+   - Implement message publication to RabbitMQ queues
+   - Create workflow for submitting items for processing
+   - Develop retry mechanism for failed processing
 
-2. **Collection Pipeline**:
-   - Implement event-based collectors (responding to specific triggers)
-   - Add periodic collection capabilities (scheduled tasks)
-   - The manual upload pipeline is already implemented
+2. **Webhook System**:
+   - Add webhook support for notifying clients of completed processing
+   - Create subscription model for processing events
+
+### Python Enrichment Microservice
+
+1. **Service Framework**:
+   - Set up Python-based microservice structure
+   - Implement RabbitMQ consumer
+   - Create pluggable processing pipeline
+
+2. **AI Models Integration**:
+   - Integrate with open-source or cloud AI services
+   - Implement model caching and optimization
+   - Create abstraction layers for different AI providers
 
 ### Storage Search
 
