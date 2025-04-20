@@ -100,16 +100,11 @@ model StorageItem {
   keywordMeta     KeywordMeta?     @relation(fields: [keywordMetaId], references: [id])
   keywordMetaId   String?          @unique
 
-  // face detections now link directly to Person
   faceDetections  FaceDetection[]
 
   // Used as profile pictures for Person - one-to-one relation
   profileFor      Person?
-
-  // For many-to-many relation with SocialMeta (simplified for PostgreSQL)
   socialMetas     SocialMeta[]     
-
-  // For many-to-many relation with Chronicle
   chronicles      Chronicle[]      @relation("ChronicleStorageRefs")
 
   @@index([type])
