@@ -413,7 +413,7 @@ export const updateEnrichmentData = async (id, requestBody) => {
             data: {
                 rawMetadata: {
                     ...(storageItem.rawMetadata || {}),
-                    enrichment: requestBody
+                    ...requestBody
                 },
                 processedAt: new Date()
             }
@@ -423,135 +423,6 @@ export const updateEnrichmentData = async (id, requestBody) => {
     } catch (error) {
         logger.error(`Error updating enrichment data for item ${id}:`, error);
         return { success: false, message: error.message };
-    }
-};
-
-// Helper functions to extract minimal data from raw AWS responses
-const extractTextFromRawResponse = (rawResponse) => {
-    if (!rawResponse || !rawResponse.Blocks) return "";
-    
-    let text = "";
-    for (const block of rawResponse.Blocks) {
-        if (block.BlockType === 'LINE') {
-            text += block.Text + "\n";
-        }
-    }
-    return text.trim();
-};
-
-const extractLabelsFromRawResponse = (rawResponse) => {
-    if (!rawResponse || !rawResponse.Labels) return [];
-    
-    return rawResponse.Labels.map(label => ({
-        name: label.Name,
-        confidence: label.Confidence,
-        instances: label.Instances || []
-    }));
-};
-
-const extractCustomLabelsFromRawResponse = (rawResponse) => {
-    if (!rawResponse || !rawResponse.CustomLabels) return [];
-    return rawResponse.CustomLabels;
-};
-
-const extractModerationLabelsFromRawResponse = (rawResponse) => {
-    if (!rawResponse || !rawResponse.ModerationLabels) return [];
-    return rawResponse.ModerationLabels;
-};
-
-const hasSensitiveContent = (moderationData) => {
-    // Check if moderation data indicates sensitive content
-    if (!moderationData) return false;
-    
-    // If we have rawResponse, check for any high confidence moderation labels
-    if (moderationData.rawResponse && moderationData.rawResponse.ModerationLabels) {
-        for (const label of moderationData.rawResponse.ModerationLabels) {
-            if (label.Confidence > 80) {
-                return true;
-            }
-        }
-    }
-    
-    // If we have moderationLabels directly
-    if (moderationData.moderationLabels && moderationData.moderationLabels.length > 0) {
-        for (const label of moderationData.moderationLabels) {
-            if (label.confidence > 80) {
-                return true;
-            }
-        }
-    }
-    
-    return false;
-};
-
-const processRawFaceResponse = async (storageItemId, faces) => {
-    // Process raw AWS Rekognition face detection response
-    if (!faces || !faces.length) return;
-    
-    for (const faceData of faces) {
-        const rawResponse = faceData.rawResponse;
-        if (!rawResponse) continue;
-        
-        // Basic extraction of face data from raw response
-        const boundingBox = rawResponse.BoundingBox || {};
-        const confidence = rawResponse.Confidence || 0;
-        
-        // Handle celebrity data if this is a celebrity
-        let personId = null;
-        if (faceData.isCelebrity && faceData.name) {
-            // Find or create celebrity person
-            let person = await prisma.person.findFirst({
-                where: {
-                    name: faceData.name,
-                    isCelebrity: true
-                }
-            });
-            
-            if (!person) {
-                person = await prisma.person.create({
-                    data: {
-                        name: faceData.name,
-                        aliases: faceData.aliases || [],
-                        isCelebrity: true,
-                        celebrityInfo: faceData.info || {}
-                    }
-                });
-            }
-            
-            personId = person.id;
-        } else if (faceData.personId) {
-            // Use provided person ID
-            personId = faceData.personId;
-        }
-        
-        // Skip if we don't have a person
-        if (!personId) continue;
-        
-        // Create face detection with raw response
-        await prisma.faceDetection.create({
-            data: {
-                confidence: confidence,
-                boundingBox: {
-                    x: boundingBox.Left * 100 || 0,
-                    y: boundingBox.Top * 100 || 0,
-                    width: boundingBox.Width * 100 || 0,
-                    height: boundingBox.Height * 100 || 0
-                },
-                storageItemId,
-                personId,
-                rawMetadata: {
-                    rekognition: {
-                        raw: rawResponse,
-                        // Add extracted attributes if needed
-                        attributes: {
-                            emotions: rawResponse.Emotions || [],
-                            ageRange: rawResponse.AgeRange || {},
-                            gender: rawResponse.Gender || {}
-                        }
-                    }
-                }
-            }
-        });
     }
 };
 
