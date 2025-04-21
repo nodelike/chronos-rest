@@ -446,24 +446,32 @@ export const updateEnrichmentData = async (id, requestBody) => {
 
         // Process label data if present
         if (data.labelData) {
-            let labelMeta;
-            if (storageItem.labelMetaId) {
-                labelMeta = await prisma.labelMeta.update({
-                    where: { id: storageItem.labelMetaId },
-                    data: {
-                        labels: data.labelData.Labels || [],
-                        rawMetadata: data.labelData
-                    },
-                });
-            } else {
-                labelMeta = await prisma.labelMeta.create({
-                    data: {
-                        labels: data.labelData.Labels || [],
-                        rawMetadata: data.labelData
-                    },
-                });
+            try {
+                let labelMeta;
+                // Handle both array and object formats from AWS
+                const labelsData = Array.isArray(data.labelData) ? data.labelData : [];
+                
+                if (storageItem.labelMetaId) {
+                    labelMeta = await prisma.labelMeta.update({
+                        where: { id: storageItem.labelMetaId },
+                        data: {
+                            labels: labelsData,
+                            rawMetadata: data.labelData
+                        },
+                    });
+                } else {
+                    labelMeta = await prisma.labelMeta.create({
+                        data: {
+                            labels: labelsData,
+                            rawMetadata: data.labelData
+                        },
+                    });
+                }
+                updates.labelMetaId = labelMeta.id;
+            } catch (error) {
+                logger.error(`Error processing label data: ${error.message}`);
+                // Continue processing other data even if labels fail
             }
-            updates.labelMetaId = labelMeta.id;
         }
 
         // Process moderation data if present
@@ -492,36 +500,41 @@ export const updateEnrichmentData = async (id, requestBody) => {
 
         // Process face data if present
         if (data.faces && Array.isArray(data.faces) && data.faces.length > 0) {
-            // First delete any existing face detections for this item
-            await prisma.faceDetection.deleteMany({
-                where: { storageItemId: id }
-            });
-            
-            // Process each face
-            for (const face of data.faces) {
-                // Create a generic person for each face
-                const person = await prisma.person.create({
-                    data: {
-                        name: `Person in ${storageItem.fileName || 'photo'}`,
-                        aliases: []
-                    }
+            try {
+                // First delete any existing face detections for this item
+                await prisma.faceDetection.deleteMany({
+                    where: { storageItemId: id }
                 });
                 
-                // Create the face detection
-                await prisma.faceDetection.create({
-                    data: {
-                        confidence: face.confidence || 0,
-                        boundingBox: {
-                            x: face.boundingBox?.Left * 100 || 0,
-                            y: face.boundingBox?.Top * 100 || 0,
-                            width: face.boundingBox?.Width * 100 || 0,
-                            height: face.boundingBox?.Height * 100 || 0
-                        },
-                        storageItemId: id,
-                        personId: person.id,
-                        rawMetadata: face
-                    }
-                });
+                // Process each face
+                for (const face of data.faces) {
+                    // Create a generic person for each face
+                    const person = await prisma.person.create({
+                        data: {
+                            name: `Person in ${storageItem.fileName || 'photo'}`,
+                            aliases: []
+                        }
+                    });
+                    
+                    // Create the face detection
+                    await prisma.faceDetection.create({
+                        data: {
+                            confidence: face.confidence || 0,
+                            boundingBox: {
+                                x: face.boundingBox?.Left * 100 || 0,
+                                y: face.boundingBox?.Top * 100 || 0,
+                                width: face.boundingBox?.Width * 100 || 0,
+                                height: face.boundingBox?.Height * 100 || 0
+                            },
+                            storageItemId: id,
+                            personId: person.id,
+                            rawMetadata: face
+                        }
+                    });
+                }
+            } catch (error) {
+                logger.error(`Error processing face data: ${error.message}`);
+                // Continue processing other data even if faces fail
             }
         }
 

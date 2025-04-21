@@ -154,8 +154,12 @@ export const updateStorageItemEnrichment = async (req, res, next) => {
     try {
         const { id } = req.params;
         
-        // Log what we received so we can debug
-        logger.info(`Received enrichment data for item ${id}`);
+        // Log what we received for debugging
+        logger.info(`Received enrichment data for item ${id}`, {
+            bodySize: JSON.stringify(req.body).length,
+            keys: Object.keys(req.body),
+            dataKeys: req.body.data ? Object.keys(req.body.data) : 'no data field'
+        });
         
         // Just pass everything from the request to the service
         const result = await updateEnrichmentData(id, req.body);
@@ -173,6 +177,7 @@ export const updateStorageItemEnrichment = async (req, res, next) => {
             );
     } catch (error) {
         logger.error(`Error updating enrichment data for item ${req.params.id}:`, error);
+        logger.error(`Stack trace: ${error.stack}`);
         next(error);
     }
 };
