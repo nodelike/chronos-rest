@@ -154,27 +154,28 @@ export const updateStorageItemEnrichment = async (req, res, next) => {
     try {
         const { id } = req.params;
         
-        // Log what we received for debugging
-        logger.info(`Received enrichment data for item ${id}`, {
-            bodySize: JSON.stringify(req.body).length,
-            keys: Object.keys(req.body),
-            dataKeys: req.body.data ? Object.keys(req.body.data) : 'no data field'
-        });
+        logger.info(`Received enrichment data for item ${id}`);
         
-        // Just pass everything from the request to the service
-        const result = await updateEnrichmentData(id, req.body);
+        let data = req.body;
+        
+        // If the request body might be a string (from some clients), try to parse it
+        if (typeof req.body === 'string') {
+            try {
+                data = JSON.parse(req.body);
+            } catch (e) {
+                logger.warn(`Failed to parse request body as JSON: ${e.message}`);
+                // Continue with the string
+            }
+        }
+        
+        // Pass to service
+        const result = await updateEnrichmentData(id, data);
 
         if (!result.success) {
             return res.status(400).json(errorResponse(result.message, 400));
         }
 
-        return res
-            .status(200)
-            .json(
-                successResponse("Storage item enrichment updated successfully", {
-                    item: result.item,
-                })
-            );
+        return res.status(200).json(successResponse("Enrichment data stored successfully", { id }));
     } catch (error) {
         logger.error(`Error updating enrichment data for item ${req.params.id}:`, error);
         logger.error(`Stack trace: ${error.stack}`);

@@ -397,7 +397,6 @@ const determineItemType = (mimetype) => {
 
 export const updateEnrichmentData = async (id, requestBody) => {
     try {
-        // Log the incoming data structure for debugging
         logger.info(`Processing enrichment data for item ${id}`);
 
         const storageItem = await prisma.storageItem.findUnique({
@@ -408,156 +407,18 @@ export const updateEnrichmentData = async (id, requestBody) => {
             return { success: false, message: "Storage item not found" };
         }
 
-        // Mark the item as processed
-        const updates = {
-            processedAt: new Date(),
-        };
-
-        // Get the data we need - could be directly in the body or in a data field
-        const data = requestBody.data || requestBody;
-
-        // Simple approach: store the raw data in the StorageItem
-        updates.rawMetadata = {
-            ...(storageItem.rawMetadata || {}),
-            enrichmentData: data
-        };
-
-        // Process OCR data if present
-        if (data.ocrData) {
-            let ocrMeta;
-            if (storageItem.ocrMetaId) {
-                ocrMeta = await prisma.ocrMeta.update({
-                    where: { id: storageItem.ocrMetaId },
-                    data: {
-                        text: data.ocrData.text || '',
-                        rawMetadata: data.ocrData.blocks || {}
-                    },
-                });
-            } else {
-                ocrMeta = await prisma.ocrMeta.create({
-                    data: {
-                        text: data.ocrData.text || '',
-                        rawMetadata: data.ocrData.blocks || {}
-                    },
-                });
-            }
-            updates.ocrMetaId = ocrMeta.id;
-        }
-
-        // Process label data if present
-        if (data.labelData) {
-            try {
-                let labelMeta;
-                // Handle both array and object formats from AWS
-                const labelsData = Array.isArray(data.labelData) ? data.labelData : [];
-                
-                if (storageItem.labelMetaId) {
-                    labelMeta = await prisma.labelMeta.update({
-                        where: { id: storageItem.labelMetaId },
-                        data: {
-                            labels: labelsData,
-                            rawMetadata: data.labelData
-                        },
-                    });
-                } else {
-                    labelMeta = await prisma.labelMeta.create({
-                        data: {
-                            labels: labelsData,
-                            rawMetadata: data.labelData
-                        },
-                    });
-                }
-                updates.labelMetaId = labelMeta.id;
-            } catch (error) {
-                logger.error(`Error processing label data: ${error.message}`);
-                // Continue processing other data even if labels fail
-            }
-        }
-
-        // Process moderation data if present
-        if (data.moderationData) {
-            let contentModerationMeta;
-            if (storageItem.contentModerationMetaId) {
-                contentModerationMeta = await prisma.contentModerationMeta.update({
-                    where: { id: storageItem.contentModerationMetaId },
-                    data: {
-                        moderationLabels: data.moderationData.ModerationLabels || [],
-                        isSafe: (data.moderationData.ModerationLabels || []).length === 0,
-                        rawMetadata: data.moderationData
-                    },
-                });
-            } else {
-                contentModerationMeta = await prisma.contentModerationMeta.create({
-                    data: {
-                        moderationLabels: data.moderationData.ModerationLabels || [],
-                        isSafe: (data.moderationData.ModerationLabels || []).length === 0,
-                        rawMetadata: data.moderationData
-                    },
-                });
-            }
-            updates.contentModerationMetaId = contentModerationMeta.id;
-        }
-
-        // Process face data if present
-        if (data.faces && Array.isArray(data.faces) && data.faces.length > 0) {
-            try {
-                // First delete any existing face detections for this item
-                await prisma.faceDetection.deleteMany({
-                    where: { storageItemId: id }
-                });
-                
-                // Process each face
-                for (const face of data.faces) {
-                    // Create a generic person for each face
-                    const person = await prisma.person.create({
-                        data: {
-                            name: `Person in ${storageItem.fileName || 'photo'}`,
-                            aliases: []
-                        }
-                    });
-                    
-                    // Create the face detection
-                    await prisma.faceDetection.create({
-                        data: {
-                            confidence: face.confidence || 0,
-                            boundingBox: {
-                                x: face.boundingBox?.Left * 100 || 0,
-                                y: face.boundingBox?.Top * 100 || 0,
-                                width: face.boundingBox?.Width * 100 || 0,
-                                height: face.boundingBox?.Height * 100 || 0
-                            },
-                            storageItemId: id,
-                            personId: person.id,
-                            rawMetadata: face
-                        }
-                    });
-                }
-            } catch (error) {
-                logger.error(`Error processing face data: ${error.message}`);
-                // Continue processing other data even if faces fail
-            }
-        }
-
-        // Update the storage item with all the collected updates
+        // Just store whatever we get directly in the database
         const updatedItem = await prisma.storageItem.update({
             where: { id },
-            data: updates,
-            include: {
-                geoMeta: true,
-                ocrMeta: true,
-                transcriptMeta: true,
-                keywordMeta: true,
-                labelMeta: true,
-                customLabelMeta: true,
-                contentModerationMeta: true,
-                faceDetections: {
-                    include: {
-                        person: true,
-                    },
+            data: {
+                rawMetadata: {
+                    ...(storageItem.rawMetadata || {}),
+                    enrichment: requestBody
                 },
-            },
+                processedAt: new Date()
+            }
         });
-
+        
         return { success: true, item: updatedItem };
     } catch (error) {
         logger.error(`Error updating enrichment data for item ${id}:`, error);
