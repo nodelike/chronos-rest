@@ -155,7 +155,7 @@ export const updateStorageItemEnrichment = async (req, res, next) => {
         const { id } = req.params;
         
         logger.info(`Received enrichment data for item ${id}`);
-        logger.info("updateStorageItemEnrichment got body:", JSON.stringify(req.body));
+        logger.info("updateStorageItemEnrichment got body:", req.body);
         
         let data = req.body;
         
