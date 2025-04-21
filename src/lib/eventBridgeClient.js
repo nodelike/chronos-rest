@@ -3,7 +3,7 @@ import logger from "./logger.js";
 import "dotenv/config";
 
 const REGION = process.env.AWS_REGION;
-const EVENT_BUS_NAME = process.env.AWS_EVENT_BUS_NAME || "chronos-enricher-bus";
+const EVENT_BUS_NAME = process.env.AWS_EVENT_BUS_NAME;
 const EVENT_SOURCE = "com.chronos.enricher";
 const EVENT_DETAIL_TYPE = "EnrichmentRequested";
 

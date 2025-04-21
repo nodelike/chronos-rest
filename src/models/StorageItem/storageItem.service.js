@@ -395,8 +395,11 @@ const determineItemType = (mimetype) => {
     return "OTHER";
 };
 
-export const updateEnrichmentData = async (id, data) => {
+export const updateEnrichmentData = async (id, requestBody) => {
     try {
+        // Log the incoming data structure for debugging
+        logger.info(`Processing enrichment data for item ${id}`);
+
         const storageItem = await prisma.storageItem.findUnique({
             where: { id },
         });
@@ -405,374 +408,120 @@ export const updateEnrichmentData = async (id, data) => {
             return { success: false, message: "Storage item not found" };
         }
 
+        // Mark the item as processed
         const updates = {
             processedAt: new Date(),
         };
 
-        // Store all raw AWS responses in the StorageItem's rawMetadata
+        // Get the data we need - could be directly in the body or in a data field
+        const data = requestBody.data || requestBody;
+
+        // Simple approach: store the raw data in the StorageItem
         updates.rawMetadata = {
             ...(storageItem.rawMetadata || {}),
-            ...(data?.rekognitionMeta && { rekognition: data.rekognitionMeta }),
-            ...(data?.ocrData?.rawResponse && { textract: data.ocrData.rawResponse }),
-            ...(data?.labelData?.rawResponse && { labels: data.labelData.rawResponse }),
-            ...(data?.moderationData?.rawResponse && { moderation: data.moderationData.rawResponse }),
-            ...(data?.celebrityData?.rawResponse && { celebrities: data.celebrityData.rawResponse }),
-            ...(data?.customLabelData?.rawResponse && { customLabels: data.customLabelData.rawResponse })
+            enrichmentData: data
         };
 
-        if (data?.geoData) {
-            let geoMeta;
-            if (storageItem.geoMetaId) {
-                geoMeta = await prisma.geoMeta.update({
-                    where: { id: storageItem.geoMetaId },
-                    data: {
-                        lat: data.geoData.lat,
-                        lng: data.geoData.lng,
-                        place: data.geoData.place || null,
-                    },
-                });
-            } else {
-                geoMeta = await prisma.geoMeta.create({
-                    data: {
-                        lat: data.geoData.lat,
-                        lng: data.geoData.lng,
-                        place: data.geoData.place || null,
-                    },
-                });
-            }
-            updates.geoMetaId = geoMeta.id;
-        }
-
-        if (data?.ocrData) {
+        // Process OCR data if present
+        if (data.ocrData) {
             let ocrMeta;
             if (storageItem.ocrMetaId) {
-                // Store raw AWS Textract response with minimal processing
                 ocrMeta = await prisma.ocrMeta.update({
                     where: { id: storageItem.ocrMetaId },
                     data: {
-                        // Extract just the text for the text field
-                        text: data.ocrData.text || extractTextFromRawResponse(data.ocrData.rawResponse),
-                        language: data.ocrData.language || null,
-                        // Store the complete raw response for future use
-                        rawMetadata: data.ocrData.rawResponse || data.ocrData.blocks || {},
+                        text: data.ocrData.text || '',
+                        rawMetadata: data.ocrData.blocks || {}
                     },
                 });
             } else {
-                // Create with raw AWS Textract response
                 ocrMeta = await prisma.ocrMeta.create({
                     data: {
-                        text: data.ocrData.text || extractTextFromRawResponse(data.ocrData.rawResponse),
-                        language: data.ocrData.language || null,
-                        rawMetadata: data.ocrData.rawResponse || data.ocrData.blocks || {},
+                        text: data.ocrData.text || '',
+                        rawMetadata: data.ocrData.blocks || {}
                     },
                 });
             }
-            
             updates.ocrMetaId = ocrMeta.id;
         }
 
-        if (data?.transcriptData) {
-            let transcriptMeta;
-            if (storageItem.transcriptMetaId) {
-                transcriptMeta = await prisma.transcriptMeta.update({
-                    where: { id: storageItem.transcriptMetaId },
-                    data: {
-                        transcript: data.transcriptData.transcript,
-                        language: data.transcriptData.language || null,
-                    },
-                });
-            } else {
-                transcriptMeta = await prisma.transcriptMeta.create({
-                    data: {
-                        transcript: data.transcriptData.transcript,
-                        language: data.transcriptData.language || null,
-                    },
-                });
-            }
-            updates.transcriptMetaId = transcriptMeta.id;
-        }
-
-        if (data?.keywords) {
-            let keywordMeta;
-            if (storageItem.keywordMetaId) {
-                keywordMeta = await prisma.keywordMeta.update({
-                    where: { id: storageItem.keywordMetaId },
-                    data: { keywords: data.keywords },
-                });
-            } else {
-                keywordMeta = await prisma.keywordMeta.create({
-                    data: { keywords: data.keywords },
-                });
-            }
-            updates.keywordMetaId = keywordMeta.id;
-        }
-
-        // Handle AWS Rekognition Labels (objects, scenes, activities, etc.)
-        if (data?.labelData && (data.labelData.labels || data.labelData.rawResponse)) {
+        // Process label data if present
+        if (data.labelData) {
             let labelMeta;
             if (storageItem.labelMetaId) {
-                // If raw response is provided, store it directly
                 labelMeta = await prisma.labelMeta.update({
                     where: { id: storageItem.labelMetaId },
                     data: {
-                        // If transformed labels are provided, use them, otherwise extract from raw response
-                        labels: data.labelData.labels || extractLabelsFromRawResponse(data.labelData.rawResponse),
-                        dominantColors: data.labelData.dominantColors || undefined,
-                        imageQuality: data.labelData.imageQuality || undefined,
-                        // Store raw response in rawMetadata
-                        rawMetadata: data.labelData.rawResponse || undefined
+                        labels: data.labelData.Labels || [],
+                        rawMetadata: data.labelData
                     },
                 });
             } else {
                 labelMeta = await prisma.labelMeta.create({
                     data: {
-                        labels: data.labelData.labels || extractLabelsFromRawResponse(data.labelData.rawResponse),
-                        dominantColors: data.labelData.dominantColors || undefined,
-                        imageQuality: data.labelData.imageQuality || undefined,
-                        rawMetadata: data.labelData.rawResponse || undefined
+                        labels: data.labelData.Labels || [],
+                        rawMetadata: data.labelData
                     },
                 });
             }
             updates.labelMetaId = labelMeta.id;
         }
 
-        // Handle AWS Rekognition Custom Labels
-        if (data?.customLabelData && (data.customLabelData.customLabels || data.customLabelData.rawResponse)) {
-            let customLabelMeta;
-            if (storageItem.customLabelMetaId) {
-                customLabelMeta = await prisma.customLabelMeta.update({
-                    where: { id: storageItem.customLabelMetaId },
-                    data: {
-                        customLabels: data.customLabelData.customLabels || extractCustomLabelsFromRawResponse(data.customLabelData.rawResponse),
-                        modelVersion: data.customLabelData.modelVersion || undefined,
-                        rawMetadata: data.customLabelData.rawResponse || undefined
-                    },
-                });
-            } else {
-                customLabelMeta = await prisma.customLabelMeta.create({
-                    data: {
-                        customLabels: data.customLabelData.customLabels || extractCustomLabelsFromRawResponse(data.customLabelData.rawResponse),
-                        modelVersion: data.customLabelData.modelVersion || undefined,
-                        rawMetadata: data.customLabelData.rawResponse || undefined
-                    },
-                });
-            }
-            updates.customLabelMetaId = customLabelMeta.id;
-        }
-
-        // Handle AWS Rekognition Content Moderation
-        if (data?.moderationData && (data.moderationData.moderationLabels || data.moderationData.rawResponse)) {
+        // Process moderation data if present
+        if (data.moderationData) {
             let contentModerationMeta;
             if (storageItem.contentModerationMetaId) {
                 contentModerationMeta = await prisma.contentModerationMeta.update({
                     where: { id: storageItem.contentModerationMetaId },
                     data: {
-                        moderationLabels: data.moderationData.moderationLabels || extractModerationLabelsFromRawResponse(data.moderationData.rawResponse),
-                        moderationConfidence: data.moderationData.moderationConfidence || undefined,
-                        isSafe: data.moderationData.isSafe !== undefined ? data.moderationData.isSafe : !hasSensitiveContent(data.moderationData),
-                        rawMetadata: data.moderationData.rawResponse || undefined
+                        moderationLabels: data.moderationData.ModerationLabels || [],
+                        isSafe: (data.moderationData.ModerationLabels || []).length === 0,
+                        rawMetadata: data.moderationData
                     },
                 });
             } else {
                 contentModerationMeta = await prisma.contentModerationMeta.create({
                     data: {
-                        moderationLabels: data.moderationData.moderationLabels || extractModerationLabelsFromRawResponse(data.moderationData.rawResponse),
-                        moderationConfidence: data.moderationData.moderationConfidence || undefined,
-                        isSafe: data.moderationData.isSafe !== undefined ? data.moderationData.isSafe : !hasSensitiveContent(data.moderationData),
-                        rawMetadata: data.moderationData.rawResponse || undefined
+                        moderationLabels: data.moderationData.ModerationLabels || [],
+                        isSafe: (data.moderationData.ModerationLabels || []).length === 0,
+                        rawMetadata: data.moderationData
                     },
                 });
             }
             updates.contentModerationMetaId = contentModerationMeta.id;
         }
 
-        if (data?.faces && Array.isArray(data.faces) && data.faces.length > 0) {
-            // Handle raw face detection response if provided
-            if (data.faces[0]?.rawResponse) {
-                // Process raw AWS responses for faces
-                await processRawFaceResponse(id, data.faces);
-            } else {
-                // Process faces from AWS Rekognition via enrichment service
-                const facesToCreate = data.faces.filter(face => face.action === 'create');
-                const facesToUpdate = data.faces.filter(face => face.action === 'update');
-                const facesToDelete = data.faces.filter(face => face.action === 'delete');
-
-                // Handle creates - completely new face detections
-                for (const face of data.faces) {
-                    if (face.action === 'create') {
-                        // Handle person identification or creation
-                        let personId = face.personId;
-                        
-                        if (!personId && face.name) {
-                            // Find or create the person - this logic remains in the API
-                            // since it needs database access
-                            let person = await prisma.person.findFirst({
-                                where: {
-                                    OR: [
-                                        { name: face.name },
-                                        { aliases: { has: face.name } },
-                                    ],
-                                },
-                            });
-                            
-                            if (!person) {
-                                person = await prisma.person.create({
-                                    data: {
-                                        name: face.name,
-                                        aliases: face.aliases || [],
-                                        isCelebrity: face.isCelebrity || false,
-                                        celebrityInfo: face.info || undefined,
-                                        // Store Rekognition-specific data for the person
-                                        ...(face.externalIds && { 
-                                            rawMetadata: { 
-                                                rekognition: { 
-                                                    faceId: face.externalIds.rekognition,
-                                                    collectionId: face.collectionId
-                                                } 
-                                            } 
-                                        })
-                                    },
-                                });
-                            } else if (face.aliases && face.aliases.length > 0) {
-                                const newAliases = face.aliases.filter(alias => !person.aliases.includes(alias));
-                                if (newAliases.length > 0) {
-                                    const updateData = { 
-                                        aliases: { set: [...person.aliases, ...newAliases] }
-                                    };
-                                    
-                                    // Update Rekognition IDs if provided and not already set
-                                    if (face.externalIds && face.externalIds.rekognition) {
-                                        if (!person.rawMetadata?.rekognition?.faceId) {
-                                            updateData.rawMetadata = {
-                                                ...(person.rawMetadata || {}),
-                                                rekognition: { 
-                                                    faceId: face.externalIds.rekognition,
-                                                    collectionId: face.collectionId
-                                                }
-                                            };
-                                        }
-                                    }
-                                    
-                                    // Update celebrity info if this is a celebrity
-                                    if (face.isCelebrity && face.info) {
-                                        updateData.isCelebrity = true;
-                                        updateData.celebrityInfo = face.info;
-                                    }
-                                    
-                                    person = await prisma.person.update({
-                                        where: { id: person.id },
-                                        data: updateData
-                                    });
-                                }
-                            }
-                            
-                            personId = person.id;
-                        }
-                        
-                        // Create the face detection if we have a person
-                        if (personId) {
-                            // Store Rekognition-specific data in the detection
-                            const faceDetectionData = {
-                                confidence: face.confidence || 0.0,
-                                boundingBox: face.boundingBox || {},
-                                storageItemId: id,
-                                personId,
-                            };
-                            
-                            // Add attributes if provided
-                            if (face.attributes || face.rawResponse) {
-                                faceDetectionData.rawMetadata = {
-                                    rekognition: {
-                                        ...(face.attributes && { attributes: face.attributes }),
-                                        ...(face.externalIds?.rekognition && { faceId: face.externalIds.rekognition }),
-                                        ...(face.matchConfidence && { matchConfidence: face.matchConfidence }),
-                                        ...(face.rawResponse && { raw: face.rawResponse })
-                                    }
-                                };
-                            }
-                            
-                            await prisma.faceDetection.create({
-                                data: faceDetectionData
-                            });
-                        }
+        // Process face data if present
+        if (data.faces && Array.isArray(data.faces) && data.faces.length > 0) {
+            // First delete any existing face detections for this item
+            await prisma.faceDetection.deleteMany({
+                where: { storageItemId: id }
+            });
+            
+            // Process each face
+            for (const face of data.faces) {
+                // Create a generic person for each face
+                const person = await prisma.person.create({
+                    data: {
+                        name: `Person in ${storageItem.fileName || 'photo'}`,
+                        aliases: []
                     }
-                    
-                    // Handle updates to existing face detections
-                    else if (face.action === 'update' && face.detectionId) {
-                        const updateData = {
-                            confidence: face.confidence,
-                            boundingBox: face.boundingBox || {}
-                        };
-                        
-                        // Add Rekognition-specific updates
-                        if (face.attributes || face.externalIds || face.rawResponse) {
-                            updateData.rawMetadata = {
-                                rekognition: {
-                                    ...(face.attributes && { attributes: face.attributes }),
-                                    ...(face.externalIds?.rekognition && { faceId: face.externalIds.rekognition }),
-                                    ...(face.matchConfidence && { matchConfidence: face.matchConfidence }),
-                                    ...(face.rawResponse && { raw: face.rawResponse })
-                                }
-                            };
-                        }
-                        
-                        // If person changed, update the relationship
-                        if (face.personId) {
-                            updateData.personId = face.personId;
-                        } 
-                        // Handle person by name if no ID provided
-                        else if (face.name) {
-                            let person = await prisma.person.findFirst({
-                                where: {
-                                    OR: [
-                                        { name: face.name },
-                                        { aliases: { has: face.name } },
-                                    ],
-                                },
-                            });
-                            
-                            if (!person) {
-                                person = await prisma.person.create({
-                                    data: {
-                                        name: face.name,
-                                        aliases: face.aliases || [],
-                                        isCelebrity: face.isCelebrity || false,
-                                        celebrityInfo: face.info || undefined,
-                                        // Store Rekognition-specific data for the person
-                                        ...(face.externalIds && { 
-                                            rawMetadata: { 
-                                                rekognition: { 
-                                                    faceId: face.externalIds.rekognition,
-                                                    collectionId: face.collectionId
-                                                } 
-                                            } 
-                                        })
-                                    },
-                                });
-                            }
-                            
-                            updateData.personId = person.id;
-                        }
-                        
-                        await prisma.faceDetection.update({
-                            where: { id: face.detectionId },
-                            data: updateData
-                        });
-                    }
-                }
+                });
                 
-                // Handle explicit deletions if provided
-                if (facesToDelete.length > 0) {
-                    const detectionIdsToDelete = facesToDelete
-                        .filter(face => face.detectionId)
-                        .map(face => face.detectionId);
-                    
-                    if (detectionIdsToDelete.length > 0) {
-                        await prisma.faceDetection.deleteMany({
-                            where: { id: { in: detectionIdsToDelete } }
-                        });
+                // Create the face detection
+                await prisma.faceDetection.create({
+                    data: {
+                        confidence: face.confidence || 0,
+                        boundingBox: {
+                            x: face.boundingBox?.Left * 100 || 0,
+                            y: face.boundingBox?.Top * 100 || 0,
+                            width: face.boundingBox?.Width * 100 || 0,
+                            height: face.boundingBox?.Height * 100 || 0
+                        },
+                        storageItemId: id,
+                        personId: person.id,
+                        rawMetadata: face
                     }
-                }
+                });
             }
         }
 

@@ -153,17 +153,12 @@ export const createNonFileItem = async (req, res, next) => {
 export const updateStorageItemEnrichment = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { data, status } = req.body;
-
-        if (!id) {
-            throw new BadRequestError("Storage item ID is required");
-        }
-
-        if (!status) {
-            throw new BadRequestError("Enrichment status should be true");
-        }
-
-        const result = await updateEnrichmentData(id, data);
+        
+        // Log what we received so we can debug
+        logger.info(`Received enrichment data for item ${id}`);
+        
+        // Just pass everything from the request to the service
+        const result = await updateEnrichmentData(id, req.body);
 
         if (!result.success) {
             return res.status(400).json(errorResponse(result.message, 400));
@@ -172,7 +167,7 @@ export const updateStorageItemEnrichment = async (req, res, next) => {
         return res
             .status(200)
             .json(
-                successResponse(`Storage item enrichment ${status === "success" ? "successfully updated" : "marked as failed"}`, {
+                successResponse("Storage item enrichment updated successfully", {
                     item: result.item,
                 })
             );
