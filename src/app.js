@@ -46,8 +46,6 @@ app.use("/auth", userRoutes);
 app.use("/storage", storageRoutes);
 app.use("/people", personRoutes);
 
-// Microservice routes - these don't require authentication
-app.use("/api", personMicroserviceRoutes);
 
 // Default route
 app.get("/", (req, res) => {

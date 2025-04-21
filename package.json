@@ -18,8 +18,9 @@
   ],
   "author": "",
   "license": "ISC",
-  "description": "A RESTful API built with Express.js, Prisma, and MongoDB",
+  "description": "A RESTful API built with Express.js, Prisma, and PostgreSQL",
   "dependencies": {
+    "@aws-sdk/client-eventbridge": "^3.790.0",
     "@aws-sdk/client-s3": "^3.787.0",
     "@aws-sdk/s3-request-presigner": "^3.787.0",
     "@prisma/client": "^6.6.0",

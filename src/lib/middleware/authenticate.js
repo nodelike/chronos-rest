@@ -22,4 +22,12 @@ export const authenticate = (req, res, next) => {
 
     req.user = decoded;
     next();
-}; 
+};
+
+export const enrichmentAuth = (req, res, next) => {
+    const apiKey = req.headers["x-api-key"];
+    if (!apiKey || apiKey !== process.env.ENRICHMENT_SERVICE_API_KEY) {
+        return res.status(401).json(errorResponse("Unauthorized: Invalid API key", 401));
+    }
+    next();
+};

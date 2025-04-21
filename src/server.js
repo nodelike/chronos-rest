@@ -4,8 +4,7 @@ import "dotenv/config";
 
 const PORT = process.env.PORT;
 
+// Start the server
 app.listen(PORT, () => {
-    logger.info(`Server is running on port http://localhost:${PORT}`);
-    logger.info(`Log level: ${process.env.LOG_LEVEL || "info"}`);
-    logger.info(`Environment: ${process.env.NODE_ENV}`);
+    logger.info(`Server started on port ${PORT}`);
 });

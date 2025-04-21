@@ -1,4 +1,11 @@
-import { createStorageItem, getStorageItemById, getStorageItems, deleteStorageItem, createNonFileStorageItem } from "./storageItem.service.js";
+import {
+    createStorageItem,
+    getStorageItemById,
+    getStorageItems,
+    deleteStorageItem,
+    createNonFileStorageItem,
+    updateEnrichmentData,
+} from "./storageItem.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
 
@@ -85,16 +92,16 @@ export const removeStorageItem = async (req, res, next) => {
 export const createNonFileItem = async (req, res, next) => {
     try {
         const { type, title, content, url, metadata } = req.body;
-        
+
         if (!type) {
             throw new BadRequestError("Item type is required");
         }
-        
+
         const validTypes = ["EVENT", "NOTE", "LOCATION", "LINK", "SOCIAL_MEDIA"];
         if (!validTypes.includes(type)) {
-            throw new BadRequestError(`Invalid item type. Must be one of: ${validTypes.join(', ')}`);
+            throw new BadRequestError(`Invalid item type. Must be one of: ${validTypes.join(", ")}`);
         }
-        
+
         switch (type) {
             case "EVENT":
                 if (!title || !content) {
@@ -124,14 +131,14 @@ export const createNonFileItem = async (req, res, next) => {
         }
 
         const userId = req.user.id;
-        
+
         const itemData = {
             type,
             title,
             content,
             url,
             metadata: metadata || {},
-            userId
+            userId,
         };
 
         const storageItem = await createNonFileStorageItem(itemData);
@@ -143,10 +150,43 @@ export const createNonFileItem = async (req, res, next) => {
     }
 };
 
+export const updateStorageItemEnrichment = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { data, status } = req.body;
+
+        if (!id) {
+            throw new BadRequestError("Storage item ID is required");
+        }
+
+        if (!status) {
+            throw new BadRequestError("Enrichment status should be true");
+        }
+
+        const result = await updateEnrichmentData(id, data);
+
+        if (!result.success) {
+            return res.status(400).json(errorResponse(result.message, 400));
+        }
+
+        return res
+            .status(200)
+            .json(
+                successResponse(`Storage item enrichment ${status === "success" ? "successfully updated" : "marked as failed"}`, {
+                    item: result.item,
+                })
+            );
+    } catch (error) {
+        logger.error(`Error updating enrichment data for item ${req.params.id}:`, error);
+        next(error);
+    }
+};
+
 export default {
     uploadStorageItem,
     getStorageItem,
     getAllStorageItems,
     removeStorageItem,
-    createNonFileItem
+    createNonFileItem,
+    updateStorageItemEnrichment,
 };

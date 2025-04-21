@@ -10,7 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Define models below
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -100,6 +99,16 @@ model StorageItem {
   keywordMeta     KeywordMeta?     @relation(fields: [keywordMetaId], references: [id])
   keywordMetaId   String?          @unique
 
+  // New relationships for additional AWS Rekognition features
+  labelMeta       LabelMeta?       @relation(fields: [labelMetaId], references: [id])
+  labelMetaId     String?          @unique
+
+  customLabelMeta CustomLabelMeta? @relation(fields: [customLabelMetaId], references: [id])
+  customLabelMetaId String?        @unique
+  
+  contentModerationMeta ContentModerationMeta? @relation(fields: [contentModerationMetaId], references: [id])
+  contentModerationMetaId String?  @unique
+
   faceDetections  FaceDetection[]
 
   // Used as profile pictures for Person - one-to-one relation
@@ -127,6 +136,7 @@ model OcrMeta {
   id        String      @id @default(uuid())
   text      String
   language  String?
+  rawMetadata Json?     // Store structured OCR data (blocks, lines, words, etc.)
   storageItem StorageItem?
 
   @@map("ocr_meta")
@@ -149,6 +159,37 @@ model KeywordMeta {
   @@map("keyword_meta")
 }
 
+// New models for additional AWS Rekognition features
+
+model LabelMeta {
+  id            String      @id @default(uuid())
+  labels        Json        // Array of labels with confidence scores
+  dominantColors Json?      // Color information
+  imageQuality  Json?       // Quality metrics
+  storageItem   StorageItem?
+
+  @@map("label_meta")
+}
+
+model CustomLabelMeta {
+  id            String      @id @default(uuid())
+  customLabels  Json        // Custom objects detected with confidence
+  modelVersion  String?     // The version of custom labels model used
+  storageItem   StorageItem?
+
+  @@map("custom_label_meta")
+}
+
+model ContentModerationMeta {
+  id               String      @id @default(uuid())
+  moderationLabels Json        // Detected moderation labels
+  moderationConfidence Float?  // Overall moderation confidence
+  isSafe           Boolean     @default(true)
+  storageItem      StorageItem?
+
+  @@map("content_moderation_meta")
+}
+
 // Each detected face instance links a StorageItem to a Person
 model FaceDetection {
   id              String     @id @default(uuid())
@@ -168,6 +209,8 @@ model Person {
   id                  String             @id @default(uuid())
   name                String
   aliases             String[]
+  isCelebrity         Boolean           @default(false)
+  celebrityInfo       Json?             // Store URLs, profession, and other celebrity-specific data
 
   profilePicture      StorageItem?       @relation(fields: [profilePictureId], references: [id])
   profilePictureId    String?            @unique
@@ -215,7 +258,6 @@ model SocialProfile {
   @@map("social_profiles")
 }
 
-// A single fetched post (tweet, IG post, LinkedIn update…)
 model SocialMeta {
   id                String           @id @default(uuid())
   platform          SocialPlatform
@@ -226,7 +268,6 @@ model SocialMeta {
   authorProfile     SocialProfile?   @relation(fields: [authorProfileId], references: [id])
   authorProfileId   String?
 
-  // Simplified for PostgreSQL - direct many-to-many
   attachments       StorageItem[]
 
   createdAt         DateTime         @default(now())
@@ -247,7 +288,6 @@ model Chronicle {
 
   body          Json           // markdown or portable text with embedded StorageItem IDs
   
-  // For many-to-many relation with StorageItem (simplified for PostgreSQL)
   referencedStorageItems StorageItem[] @relation("ChronicleStorageRefs")
 
   createdAt     DateTime       @default(now())
