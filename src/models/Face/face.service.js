@@ -1,4 +1,4 @@
-import { findOrCreatePerson } from "../Person/person.service.js";
+import { findOrCreatePerson, setPersonProfilePicture } from "../Person/person.service.js";
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
 import { extractKeyFromUri } from "../../lib/s3Service.js";
@@ -11,20 +11,7 @@ export const createFace = async (face, storageItemId) => {
     }
 
     try {
-        let person;
-
-        if (personId) {
-            person = await prisma.person.findUnique({
-                where: { id: personId },
-            });
-        } else {
-            person = await prisma.person.create({
-                data: {
-                    name: name,
-                    type: personType,
-                },
-            });
-        }
+        const person = await findOrCreatePerson(personId, name, personType);
 
         // Now create the face with the person relation
         const createdFace = await prisma.face.create({
@@ -51,10 +38,7 @@ export const createFace = async (face, storageItemId) => {
         });
 
         if (!person.profilePictureId) {
-            await prisma.person.update({
-                where: { id: person.id },
-                data: { profilePictureId: createdFace.id },
-            });
+            await setPersonProfilePicture(person.id, createdFace.id);
         }
 
         return { success: true, message: "Face created successfully" };

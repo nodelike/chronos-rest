@@ -129,29 +129,29 @@ export const deletePerson = async (id) => {
     }
 };
 
-export const findOrCreatePerson = async (personId, name, type, faceId = null) => {
+export const findOrCreatePerson = async (personId, name, type) => {
     try {
         let person = await getPersonById(personId);
 
         if (!person) {
             person = await createPerson(name, type);
-            
-            if (faceId) {
-                person = await prisma.person.update({
-                    where: { id: person.id },
-                    data: { profilePictureId: faceId },
-                    include: {
-                        profilePicture: true,
-                        face: false,
-                        socialProfiles: false
-                    }
-                });
-            }
         }
 
         return person;
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
+        throw error;
+    }
+};
+
+export const setPersonProfilePicture = async (personId, faceId) => {
+    try {
+        await prisma.person.update({
+            where: { id: personId },
+            data: { profilePictureId: faceId }
+        });
+    } catch (error) {
+        logger.error(`Error setting profile picture for person ${personId}:`, error);
         throw error;
     }
 };
