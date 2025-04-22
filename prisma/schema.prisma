@@ -174,7 +174,7 @@ model Face {
 // A canonical person in your system
 model Person {
   id                  String             @id @default(uuid())
-  name                String
+  name                String?
   type                PersonType         @default(PERSON)
   celebrityInfo       Json?             // Store URLs, profession, and other celebrity-specific data
 
