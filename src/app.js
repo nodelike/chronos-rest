@@ -3,7 +3,8 @@ import logger from "./lib/logger.js";
 import "dotenv/config";
 import userRoutes from "./models/User/user.routes.js";
 import storageRoutes from "./models/StorageItem/storageItem.routes.js";
-import personRoutes, { msRouter as personMicroserviceRoutes } from "./models/Person/person.routes.js";
+import personRoutes from "./models/Person/person.routes.js";
+import enrichmentRoutes from "./models/StorageItem/enrichment.routes.js";
 import { errorResponse, NotFoundError } from "./lib/helpers.js";
 
 const app = express();
@@ -44,8 +45,8 @@ app.use((req, res, next) => {
 // Routes
 app.use("/auth", userRoutes);
 app.use("/storage", storageRoutes);
+app.use("/enrichment", enrichmentRoutes);
 app.use("/people", personRoutes);
-
 
 // Default route
 app.get("/", (req, res) => {

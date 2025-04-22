@@ -165,7 +165,7 @@ Each storage item returned by the API includes:
 - Standard item metadata (id, fileName, fileSize, etc.)
 - `uri`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 - For images with thumbnails:
-  - `rawMetadata.thumbnail`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
+  - `rawMeta.thumbnail`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 
 ## Current Implementation Status
 
@@ -245,7 +245,7 @@ The system implements comprehensive metadata extraction for media files:
 The database schema now includes expanded models for:
 
 - **Person Management**:
-  - Person profiles with name and aliases
+  - Person profiles with name
   - Face detection linking to persons
   - Face recognition with AWS Rekognition integration
   - Progressive learning system that improves person recognition over time
@@ -416,7 +416,6 @@ The system includes AWS EventBridge integration for serverless, event-driven pro
           {
             "action": "create",
             "name": "Person Name",
-            "aliases": ["Nickname"],
             "confidence": 0.95,
             "boundingBox": { "x": 0, "y": 0, "width": 100, "height": 100 },
             "personId": "existing-person-id", // Optional

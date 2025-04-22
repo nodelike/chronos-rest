@@ -119,13 +119,13 @@ export const replaceWithPresignedUrls = async (item) => {
             result.uri = await getPresignedUrl(fileKey);
         }
         
-        if (item.rawMetadata && item.rawMetadata.thumbnail) {
-            const thumbnailKey = extractKeyFromUri(item.rawMetadata.thumbnail);
+        if (item.rawMeta && item.rawMeta.thumbnail) {
+            const thumbnailKey = extractKeyFromUri(item.rawMeta.thumbnail);
             if (thumbnailKey) {
-                result.rawMetadata = { 
-                    ...item.rawMetadata,
+                result.rawMeta = { 
+                    ...item.rawMeta,
                 };
-                result.rawMetadata.thumbnail = await getPresignedUrl(thumbnailKey);
+                result.rawMeta.thumbnail = await getPresignedUrl(thumbnailKey);
             }
         }
         
