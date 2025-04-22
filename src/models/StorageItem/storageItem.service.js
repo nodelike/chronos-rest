@@ -34,7 +34,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
                 fileSize: size,
                 mimeType: mimetype,
                 type,
-                source: "MANUAL_UPLOAD",
+                source: "MANUAL",
                 collectorType: "MANUAL",
                 userId,
                 rawMeta,

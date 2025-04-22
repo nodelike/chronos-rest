@@ -112,7 +112,7 @@ model StorageItem {
   mimeType        String
   type            ChronicleItemType
   source          ContentSource    // standardized source
-  collectorType   CollectorType    @default(MANUAL)
+  collectorType   CollectorType?
   userId          String
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
