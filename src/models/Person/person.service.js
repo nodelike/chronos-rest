@@ -131,13 +131,10 @@ export const deletePerson = async (id) => {
 
 export const findOrCreatePerson = async (personId, name, type) => {
     try {
-        let person = await getPersonById(personId);
-
-        if (!person) {
-            person = await createPerson(name, type);
+        if (!personId) {
+            return await createPerson(name, type);
         }
-
-        return person;
+        return await getPersonById(personId);
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
         throw error;
