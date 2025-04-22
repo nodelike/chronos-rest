@@ -7,6 +7,9 @@ export const processEnrichmentHandler = async (req, res, next) => {
     try {
         const { id: storageItemId } = req.params;
         let data = req.body;
+        logger.info(`Processing enrichment for item ${storageItemId} with data:`, Object.keys(data))
+        logger.info(`Processing enrichment for item ${storageItemId} with data:`, Object.keys(data?.mediaMeta))
+        logger.info(`Processing enrichment for item ${storageItemId} with data:`, Object.keys(data?.faces))
         const result = await processEnrichment(storageItemId, data);
 
         if (!result.success) {
