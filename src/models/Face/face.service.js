@@ -22,7 +22,6 @@ export const createFace = async (face, storageItemId) => {
                 smile,
                 ageRange,
                 landmarks,
-                storageItemId: storageItemId,
                 storageItem: {
                     connect: {
                         id: storageItemId,
