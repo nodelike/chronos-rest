@@ -13,7 +13,7 @@ export const createPerson = async (name, type = "PERSON") => {
         return person;
     } catch (error) {
         logger.error("Error creating person:", error);
-        return { success: false, message: "Error creating person" };
+        throw error;
     }
 };
 
@@ -38,7 +38,7 @@ export const getPersonById = async (id, includeDetections = false) => {
         return person;
     } catch (error) {
         logger.error(`Error getting person ${id}:`, error);
-        return { success: false, message: "Error getting person:" + error.message };
+        throw error;
     }
 };
 
@@ -88,7 +88,7 @@ export const getPeople = async (options = {}) => {
         };
     } catch (error) {
         logger.error("Error getting people:", error);
-        return { success: false, message: "Error getting people:" + error.message };
+        throw error;
     }
 };
 
@@ -125,7 +125,7 @@ export const deletePerson = async (id) => {
         return { success: true, message: "Person deleted successfully" };
     } catch (error) {
         logger.error(`Error deleting person ${id}:`, error);
-        return { success: false, message: "Error deleting person" };
+        throw error;
     }
 };
 
@@ -152,7 +152,7 @@ export const findOrCreatePerson = async (personId, name, type, faceId = null) =>
         return person;
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
-        return { success: false, message: "Error finding or creating person:" + error.message };
+        throw error;
     }
 };
 

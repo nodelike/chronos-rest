@@ -36,7 +36,7 @@ export const createFace = async (face, storageItemId) => {
         return { success: true, message: "Face created successfully" };
     } catch (error) {
         logger.error(`Error creating face:`, error);
-        return { success: false, message: "Error creating face:" + error.message };
+        throw error;
     }
 };
 
@@ -94,7 +94,7 @@ export const getUniqueFaces = async () => {
         return results;
     } catch (error) {
         logger.error("Error getting face detections for comparison:", error);
-        return { success: false, message: "Error getting face detections for comparison:" + error.message };
+        throw error;
     }
 };
 

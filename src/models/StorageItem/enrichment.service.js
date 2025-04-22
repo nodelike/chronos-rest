@@ -45,6 +45,6 @@ export const processEnrichment = async (storageItemId, enrichmentData) => {
         };
     } catch (error) {
         logger.error(`Error processing enrichment data for item ${storageItemId}:`, error);
-        return { success: false, message: error.message };
+        throw error;
     }
 };

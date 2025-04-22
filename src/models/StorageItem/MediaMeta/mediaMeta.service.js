@@ -16,6 +16,6 @@ export const createMediaMeta = async (mediaMeta, storageItemId) => {
         return { success: true, message: "Media meta created successfully", data: mediaMeta };
     } catch (error) {
         logger.error(`Error creating media meta:`, error);
-        return { success: false, message: "Error creating media meta" };
+        throw error;
     }
 };

@@ -70,7 +70,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
         return storageItem;
     } catch (error) {
         logger.error("Error creating storage item:", error);
-        return { success: false, message: "Error creating storage item:" + error.message };
+        throw error;
     }
 };
 
@@ -85,7 +85,7 @@ export const getStorageItemById = async (id) => {
         return await replaceWithPresignedUrls(item);
     } catch (error) {
         logger.error(`Error getting storage item ${id}:`, error);
-        return { success: false, message: "Error getting storage item:" + error.message };
+        throw error;
     }
 };
 
@@ -137,16 +137,13 @@ export const getStorageItems = async (options = {}) => {
             take: limit,
             orderBy: { createdAt: "desc" },
             include: {
-                // Include related metadata for richer search results
-                geoMeta: true,
-                ocrMeta: true,
+                // Include the consolidated metadata and related models
+                mediaMeta: true,
                 face: {
                     include: {
                         person: true,
                     },
                 },
-                transcriptMeta: true,
-                keywordMeta: true,
                 socialMetas: {
                     include: {
                         authorProfile: true,
@@ -169,7 +166,7 @@ export const getStorageItems = async (options = {}) => {
         };
     } catch (error) {
         logger.error("Error getting storage items:", error);
-        return { success: false, message: "Error getting storage items:" + error.message };
+        throw error; // Throw the error instead of returning an error object
     }
 };
 
@@ -180,6 +177,7 @@ export const deleteStorageItem = async (id, userId) => {
             include: {
                 face: true,
                 socialMetas: true,
+                mediaMeta: true,
             },
         });
 
@@ -235,27 +233,10 @@ export const deleteStorageItem = async (id, userId) => {
             }
         }
 
-        if (storageItem.geoMetaId) {
-            await prisma.geoMeta.delete({
-                where: { id: storageItem.geoMetaId },
-            });
-        }
-
-        if (storageItem.ocrMetaId) {
-            await prisma.ocrMeta.delete({
-                where: { id: storageItem.ocrMetaId },
-            });
-        }
-
-        if (storageItem.transcriptMetaId) {
-            await prisma.transcriptMeta.delete({
-                where: { id: storageItem.transcriptMetaId },
-            });
-        }
-
-        if (storageItem.keywordMetaId) {
-            await prisma.keywordMeta.delete({
-                where: { id: storageItem.keywordMetaId },
+        // Delete all associated media metadata
+        if (storageItem.mediaMeta && storageItem.mediaMeta.length > 0) {
+            await prisma.mediaMeta.deleteMany({
+                where: { itemId: id },
             });
         }
 
@@ -266,7 +247,7 @@ export const deleteStorageItem = async (id, userId) => {
         return { success: true, message: "Storage item deleted successfully" };
     } catch (error) {
         logger.error(`Error deleting storage item ${id}:`, error);
-        return { success: false, message: "Error deleting storage item" };
+        throw error;
     }
 };
 
@@ -357,7 +338,7 @@ export const createNonFileStorageItem = async (itemData) => {
         return storageItem;
     } catch (error) {
         logger.error("Error creating non-file storage item:", error);
-        return { success: false, message: "Error creating non-file storage item:" + error.message };
+        throw error;
     }
 };
 

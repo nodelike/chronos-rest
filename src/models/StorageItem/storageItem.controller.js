@@ -64,7 +64,8 @@ export const getAllStorageItems = async (req, res, next) => {
 
         return res.status(200).json(successResponse("Storage items retrieved successfully", result));
     } catch (error) {
-        next(error);
+        logger.error("Error retrieving storage items:", error);
+        return next(error);
     }
 };
 
