@@ -4,7 +4,6 @@ import {
     getStorageItems,
     deleteStorageItem,
     createNonFileStorageItem,
-    updateEnrichmentData,
 } from "./storageItem.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
@@ -150,45 +149,10 @@ export const createNonFileItem = async (req, res, next) => {
     }
 };
 
-export const updateStorageItemEnrichment = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-        
-        logger.info(`Received enrichment data for item ${id}`);
-        logger.info("updateStorageItemEnrichment got body:", req.body);
-        
-        let data = req.body;
-        
-        // If the request body might be a string (from some clients), try to parse it
-        if (typeof req.body === 'string') {
-            try {
-                data = JSON.parse(req.body);
-            } catch (e) {
-                logger.warn(`Failed to parse request body as JSON: ${e.message}`);
-                // Continue with the string
-            }
-        }
-        
-        // Pass to service
-        const result = await updateEnrichmentData(id, data);
-
-        if (!result.success) {
-            return res.status(400).json(errorResponse(result.message, 400));
-        }
-
-        return res.status(200).json(successResponse("Enrichment data stored successfully", { id }));
-    } catch (error) {
-        logger.error(`Error updating enrichment data for item ${req.params.id}:`, error);
-        logger.error(`Stack trace: ${error.stack}`);
-        next(error);
-    }
-};
-
 export default {
     uploadStorageItem,
     getStorageItem,
     getAllStorageItems,
     removeStorageItem,
     createNonFileItem,
-    updateStorageItemEnrichment,
 };

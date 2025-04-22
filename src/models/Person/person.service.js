@@ -1,22 +1,19 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
 
-export const createPerson = async (personData) => {
+export const createPerson = async (name, type = "PERSON") => {
     try {
-        const { name, aliases = [], profilePictureId } = personData;
-
         const person = await prisma.person.create({
             data: {
                 name,
-                aliases,
-                profilePictureId
+                type
             }
         });
 
         return person;
     } catch (error) {
         logger.error("Error creating person:", error);
-        throw error;
+        return { success: false, message: "Error creating person" };
     }
 };
 
@@ -29,7 +26,7 @@ export const getPersonById = async (id, includeDetections = false) => {
             where: { id },
             include: {
                 profilePicture: includeDetections,
-                faceDetections: includeDetections ? {
+                face: includeDetections ? {
                     include: {
                         storageItem: true
                     }
@@ -41,7 +38,7 @@ export const getPersonById = async (id, includeDetections = false) => {
         return person;
     } catch (error) {
         logger.error(`Error getting person ${id}:`, error);
-        return null;
+        return { success: false, message: "Error getting person:" + error.message };
     }
 };
 
@@ -58,7 +55,6 @@ export const getPeople = async (options = {}) => {
         if (name) {
             where.OR = [
                 { name: { contains: name, mode: "insensitive" } },
-                { aliases: { has: name } }
             ];
         }
 
@@ -71,7 +67,7 @@ export const getPeople = async (options = {}) => {
             orderBy: { name: "asc" },
             include: {
                 profilePicture: true,
-                faceDetections: includeDetections ? {
+                face: includeDetections ? {
                     include: {
                         storageItem: true
                     },
@@ -92,7 +88,7 @@ export const getPeople = async (options = {}) => {
         };
     } catch (error) {
         logger.error("Error getting people:", error);
-        throw error;
+        return { success: false, message: "Error getting people:" + error.message };
     }
 };
 
@@ -102,7 +98,7 @@ export const getPeople = async (options = {}) => {
 export const deletePerson = async (id) => {
     try {
         // Delete all face detections for this person
-        await prisma.faceDetection.deleteMany({
+        await prisma.face.deleteMany({
             where: { personId: id }
         });
 
@@ -133,85 +129,21 @@ export const deletePerson = async (id) => {
     }
 };
 
-/**
- * Add a face detection to a person
- */
-export const addFaceDetection = async (detectionData) => {
+export const findOrCreatePerson = async (personId, name, type, faceId = null) => {
     try {
-        const { personId, storageItemId, confidence, boundingBox } = detectionData;
-
-        // Check if the person exists
-        const person = await prisma.person.findUnique({
-            where: { id: personId }
-        });
+        let person = await getPersonById(personId);
 
         if (!person) {
-            throw new Error(`Person with ID ${personId} not found`);
-        }
-
-        // Check if the storage item exists
-        const storageItem = await prisma.storageItem.findUnique({
-            where: { id: storageItemId }
-        });
-
-        if (!storageItem) {
-            throw new Error(`Storage item with ID ${storageItemId} not found`);
-        }
-
-        // Create the face detection
-        const faceDetection = await prisma.faceDetection.create({
-            data: {
-                confidence,
-                boundingBox,
-                personId,
-                storageItemId
-            }
-        });
-
-        return faceDetection;
-    } catch (error) {
-        logger.error("Error adding face detection:", error);
-        throw error;
-    }
-};
-
-/**
- * Find or create a person with the given name
- */
-export const findOrCreatePerson = async (name, aliases = []) => {
-    try {
-        // First, try to find an exact match by name
-        let person = await prisma.person.findFirst({
-            where: { name: { equals: name, mode: "insensitive" } }
-        });
-
-        // If not found, look for a person with the name in their aliases
-        if (!person) {
-            person = await prisma.person.findFirst({
-                where: { aliases: { has: name } }
-            });
-        }
-
-        // If still not found, create a new person
-        if (!person) {
-            person = await prisma.person.create({
-                data: {
-                    name,
-                    aliases
-                }
-            });
-        } else if (aliases && aliases.length > 0) {
-            // If person exists and we have new aliases, add them if they're not already there
-            const existingAliases = new Set(person.aliases || []);
-            const newAliases = aliases.filter(alias => !existingAliases.has(alias));
+            person = await createPerson(name, type);
             
-            if (newAliases.length > 0) {
+            if (faceId) {
                 person = await prisma.person.update({
                     where: { id: person.id },
-                    data: {
-                        aliases: {
-                            push: newAliases
-                        }
+                    data: { profilePictureId: faceId },
+                    include: {
+                        profilePicture: true,
+                        face: false,
+                        socialProfiles: false
                     }
                 });
             }
@@ -220,7 +152,7 @@ export const findOrCreatePerson = async (name, aliases = []) => {
         return person;
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
-        throw error;
+        return { success: false, message: "Error finding or creating person:" + error.message };
     }
 };
 
@@ -229,6 +161,5 @@ export default {
     getPersonById,
     getPeople,
     deletePerson,
-    addFaceDetection,
     findOrCreatePerson
 }; 

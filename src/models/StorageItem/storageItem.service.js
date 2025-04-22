@@ -12,15 +12,15 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
 
         const s3Result = await uploadFile(buffer, originalname, mimetype, type.toLowerCase());
 
-        let rawMetadata = {};
+        let rawMeta = {};
 
         if (type === "PHOTO") {
-            rawMetadata = await extractImageMetadata(buffer);
-            if (Object.keys(rawMetadata).length > 0) {
+            rawMeta = await extractImageMetadata(buffer);
+            if (Object.keys(rawMeta).length > 0) {
                 try {
                     const thumbnail = await generateThumbnail(buffer);
                     const thumbnailResult = await uploadFile(thumbnail, `thumb_${originalname}`, mimetype, "thumbnails");
-                    rawMetadata.thumbnail = thumbnailResult.url;
+                    rawMeta.thumbnail = thumbnailResult.url;
                 } catch (error) {
                     logger.warn("Failed to generate thumbnail:", error);
                 }
@@ -37,7 +37,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
                 source: "MANUAL_UPLOAD",
                 collectorType: "MANUAL",
                 userId,
-                rawMetadata,
+                rawMeta,
                 processedAt: null,
             },
         });
@@ -46,22 +46,16 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
         const fileTypes = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
         if (fileTypes.includes(type)) {
             const mediaType = type.toLowerCase();
-            
+
             try {
-                const publishResult = await publishEnrichmentEvent(
-                    storageItem.id,
-                    mediaType,
-                    s3Result.bucket,
-                    s3Result.key,
-                    {
-                        mimeType: mimetype,
-                        fileName: originalname,
-                        fileSize: size,
-                        // Include basic extracted metadata
-                        ...rawMetadata,
-                    }
-                );
-                
+                const publishResult = await publishEnrichmentEvent(storageItem.id, mediaType, s3Result.bucket, s3Result.key, {
+                    mimeType: mimetype,
+                    fileName: originalname,
+                    fileSize: size,
+                    // Include basic extracted metadata
+                    ...rawMeta,
+                });
+
                 if (publishResult) {
                     logger.info(`Queued item ${storageItem.id} for enrichment processing via EventBridge`);
                 } else {
@@ -76,7 +70,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
         return storageItem;
     } catch (error) {
         logger.error("Error creating storage item:", error);
-        throw error;
+        return { success: false, message: "Error creating storage item:" + error.message };
     }
 };
 
@@ -91,7 +85,7 @@ export const getStorageItemById = async (id) => {
         return await replaceWithPresignedUrls(item);
     } catch (error) {
         logger.error(`Error getting storage item ${id}:`, error);
-        return null;
+        return { success: false, message: "Error getting storage item:" + error.message };
     }
 };
 
@@ -117,15 +111,15 @@ export const getStorageItems = async (options = {}) => {
         if (keyword) {
             where.OR = [
                 { fileName: { contains: keyword, mode: "insensitive" } },
-                // Search in rawMetadata JSON fields
+                // Search in rawMeta JSON fields
                 {
-                    rawMetadata: {
+                    rawMeta: {
                         path: ["title"],
                         string_contains: keyword,
                     },
                 },
                 {
-                    rawMetadata: {
+                    rawMeta: {
                         path: ["content"],
                         string_contains: keyword,
                     },
@@ -146,7 +140,7 @@ export const getStorageItems = async (options = {}) => {
                 // Include related metadata for richer search results
                 geoMeta: true,
                 ocrMeta: true,
-                faceDetections: {
+                face: {
                     include: {
                         person: true,
                     },
@@ -175,7 +169,7 @@ export const getStorageItems = async (options = {}) => {
         };
     } catch (error) {
         logger.error("Error getting storage items:", error);
-        throw error;
+        return { success: false, message: "Error getting storage items:" + error.message };
     }
 };
 
@@ -184,7 +178,7 @@ export const deleteStorageItem = async (id, userId) => {
         const storageItem = await prisma.storageItem.findUnique({
             where: { id },
             include: {
-                faceDetections: true,
+                face: true,
                 socialMetas: true,
             },
         });
@@ -208,8 +202,8 @@ export const deleteStorageItem = async (id, userId) => {
             }
 
             // Delete thumbnail if it exists
-            if (storageItem.rawMetadata && storageItem.rawMetadata.thumbnail) {
-                const thumbnailKey = extractKeyFromUri(storageItem.rawMetadata.thumbnail);
+            if (storageItem.rawMeta && storageItem.rawMeta.thumbnail) {
+                const thumbnailKey = extractKeyFromUri(storageItem.rawMeta.thumbnail);
                 if (thumbnailKey) {
                     await deleteFile(thumbnailKey);
                 }
@@ -217,8 +211,8 @@ export const deleteStorageItem = async (id, userId) => {
         }
 
         // Delete related face detections
-        if (storageItem.faceDetections && storageItem.faceDetections.length > 0) {
-            await prisma.faceDetection.deleteMany({
+        if (storageItem.face && storageItem.face.length > 0) {
+            await prisma.face.deleteMany({
                 where: {
                     storageItemId: id,
                 },
@@ -286,7 +280,7 @@ export const createNonFileStorageItem = async (itemData) => {
 
         let uri = url || "";
 
-        let rawMetadata = {
+        let rawMeta = {
             ...metadata,
             title,
             content,
@@ -313,7 +307,7 @@ export const createNonFileStorageItem = async (itemData) => {
                     source: "MANUAL_INPUT",
                     collectorType: "MANUAL",
                     userId,
-                    rawMetadata,
+                    rawMeta,
                     geoMetaId: geoMeta.id,
                     processedAt: null,
                 },
@@ -329,7 +323,7 @@ export const createNonFileStorageItem = async (itemData) => {
                     source: "MANUAL_INPUT",
                     collectorType: "MANUAL",
                     userId,
-                    rawMetadata,
+                    rawMeta,
                     processedAt: null,
                 },
             });
@@ -339,33 +333,21 @@ export const createNonFileStorageItem = async (itemData) => {
         if (type === "LINK" && uri) {
             try {
                 // For links, we don't have S3 keys, so we pass the URI in metadata
-                await publishEnrichmentEvent(
-                    storageItem.id,
-                    "link",
-                    null,
-                    null,
-                    {
-                        uri: uri,
-                        ...rawMetadata
-                    }
-                );
+                await publishEnrichmentEvent(storageItem.id, "link", null, null, {
+                    uri: uri,
+                    ...rawMeta,
+                });
                 logger.info(`Queued non-file item ${storageItem.id} of type ${type} for enrichment`);
             } catch (err) {
                 logger.error(`Failed to queue enrichment job for non-file item ${storageItem.id}:`, err);
             }
         } else if (type === "SOCIAL_MEDIA" && metadata?.platform) {
             try {
-                await publishEnrichmentEvent(
-                    storageItem.id,
-                    "social_media",
-                    null,
-                    null,
-                    {
-                        platform: metadata.platform,
-                        uri: uri,
-                        ...rawMetadata
-                    }
-                );
+                await publishEnrichmentEvent(storageItem.id, "social_media", null, null, {
+                    platform: metadata.platform,
+                    uri: uri,
+                    ...rawMeta,
+                });
                 logger.info(`Queued social media item ${storageItem.id} for enrichment`);
             } catch (err) {
                 logger.error(`Failed to queue enrichment job for social media item ${storageItem.id}:`, err);
@@ -375,7 +357,7 @@ export const createNonFileStorageItem = async (itemData) => {
         return storageItem;
     } catch (error) {
         logger.error("Error creating non-file storage item:", error);
-        throw error;
+        return { success: false, message: "Error creating non-file storage item:" + error.message };
     }
 };
 
@@ -395,42 +377,10 @@ const determineItemType = (mimetype) => {
     return "OTHER";
 };
 
-export const updateEnrichmentData = async (id, requestBody) => {
-    try {
-        logger.info(`Processing enrichment data for item ${id}`);
-
-        const storageItem = await prisma.storageItem.findUnique({
-            where: { id },
-        });
-
-        if (!storageItem) {
-            return { success: false, message: "Storage item not found" };
-        }
-
-        // Just store whatever we get directly in the database
-        const updatedItem = await prisma.storageItem.update({
-            where: { id },
-            data: {
-                rawMetadata: {
-                    ...(storageItem.rawMetadata || {}),
-                    ...requestBody
-                },
-                processedAt: new Date()
-            }
-        });
-        
-        return { success: true, item: updatedItem };
-    } catch (error) {
-        logger.error(`Error updating enrichment data for item ${id}:`, error);
-        return { success: false, message: error.message };
-    }
-};
-
 export default {
     createStorageItem,
     getStorageItemById,
     getStorageItems,
     deleteStorageItem,
     createNonFileStorageItem,
-    updateEnrichmentData,
 };

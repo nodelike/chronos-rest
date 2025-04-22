@@ -6,5 +6,5 @@ const PORT = process.env.PORT;
 
 // Start the server
 app.listen(PORT, () => {
-    logger.info(`Server started on port ${PORT}`);
+    console.log(`Server started on port ${PORT}`);
 });
