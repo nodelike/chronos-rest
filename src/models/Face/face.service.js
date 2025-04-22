@@ -11,6 +11,22 @@ export const createFace = async (face, storageItemId) => {
     }
 
     try {
+        let person;
+
+        if (personId) {
+            person = await prisma.person.findUnique({
+                where: { id: personId },
+            });
+        } else {
+            person = await prisma.person.create({
+                data: {
+                    name: name,
+                    type: personType,
+                },
+            });
+        }
+
+        // Now create the face with the person relation
         const createdFace = await prisma.face.create({
             data: {
                 confidence: parseFloat(confidence),
@@ -19,22 +35,25 @@ export const createFace = async (face, storageItemId) => {
                 smile,
                 ageRange,
                 landmarks,
-                personId: personId, // This will be updated after person creation
+                personId: person.id,
                 storageItemId: storageItemId,
                 storageItem: {
                     connect: {
-                        id: storageItemId
-                    }
-                }
-            }
+                        id: storageItemId,
+                    },
+                },
+                person: {
+                    connect: {
+                        id: person.id,
+                    },
+                },
+            },
         });
-        
-        let person = await findOrCreatePerson(personId, name, personType, createdFace.id);
-        
-        if (createdFace.personId !== person.id) {
-            await prisma.face.update({
-                where: { id: createdFace.id },
-                data: { personId: person.id }
+
+        if (!person.profilePictureId) {
+            await prisma.person.update({
+                where: { id: person.id },
+                data: { profilePictureId: createdFace.id },
             });
         }
 
@@ -104,5 +123,5 @@ export const getUniqueFaces = async () => {
 };
 
 export default {
-    createFace
+    createFace,
 };
