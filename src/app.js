@@ -9,6 +9,10 @@ import { errorResponse, NotFoundError } from "./lib/helpers.js";
 
 const app = express();
 
+BigInt.prototype.toJSON = function() {
+    return this.toString();
+};
+
 // Middlewares
 app.use(
     express.json({

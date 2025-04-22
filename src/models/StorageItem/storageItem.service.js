@@ -335,6 +335,10 @@ export const createNonFileStorageItem = async (itemData) => {
             }
         }
 
+        if (storageItem) {
+            return storageItem;
+        }
+        
         return storageItem;
     } catch (error) {
         logger.error("Error creating non-file storage item:", error);
