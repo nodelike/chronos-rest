@@ -21,6 +21,11 @@ export const createFace = async (face, storageItemId) => {
                 landmarks,
                 personId: personId, // This will be updated after person creation
                 storageItemId: storageItemId,
+                storageItem: {
+                    connect: {
+                        id: storageItemId
+                    }
+                }
             }
         });
         
