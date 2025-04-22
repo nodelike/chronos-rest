@@ -27,7 +27,7 @@ export const processEnrichment = async (storageItemId, enrichmentData) => {
 
         if (faces && Array.isArray(faces) && faces.length > 0) {
             for (const face of faces) {
-                await createFace(face);
+                await createFace(face, storageItemId);
                 hasUpdates = true;
             }
         }
