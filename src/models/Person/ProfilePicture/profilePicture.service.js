@@ -1,12 +1,16 @@
 import logger from "../../../lib/logger.js";
 import prisma from "../../../lib/prisma.js";
 
-export const setProfilePicture = async (personId, s3Key) => {
+export const createProfilePicture = async (personId, s3Key) => {
     try {
         const profilePicture = await prisma.profilePicture.create({
             data: {
-                personId,
                 s3Key,
+                person: {
+                    connect: {
+                        id: personId,
+                    },
+                },
             },
         });
 
