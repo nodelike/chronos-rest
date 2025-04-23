@@ -128,7 +128,7 @@ model StorageItem {
   face  Face[]
 
   // Used as profile pictures for Person - one-to-one relation
-  profileFor      Person?          @relation("StorageProfile")
+  profileFor      Person?          @relation("ProfileStorage")
   socialMetas     SocialMeta[]     
   
   // Explicit many-to-many with Chronicles
@@ -178,15 +178,15 @@ model Person {
   type                PersonType         @default(PERSON)
   celebrityInfo       Json?             // Store URLs, profession, and other celebrity-specific data
 
-  profilePicture      Face?    @relation("ProfilePicture", fields: [profilePictureId], references: [id], map: "people_profile_picture_fkey")
+  profilePicture      Face?    @relation("ProfilePicture", fields: [profilePictureId], references: [id])
   profilePictureId    String?            @unique
 
-  storageProfile      StorageItem?      @relation("StorageProfile", fields: [storageProfileId], references: [id], map: "people_storage_profile_fkey")
-  storageProfileId    String?            @unique
+  storageItem         StorageItem?      @relation("ProfileStorage", fields: [storageItemId], references: [id])
+  storageItemId       String?            @unique
 
   socialProfiles      SocialProfile[]
 
-  face      Face[]   @relation("PersonFaces")
+  face                Face[]   @relation("PersonFaces")
 
   relationsFrom       PersonRelation[]   @relation("RelationFrom")
   relationsTo         PersonRelation[]   @relation("RelationTo")
