@@ -3,14 +3,14 @@ import prisma from "../../../lib/prisma.js";
 import logger from "../../../lib/logger.js";
 
 export const createFace = async (face, storageItemId) => {
-    const { confidence, boundingBox, personId, name, emotions, smile, ageRange, landmarks, type: personType } = face;
+    const { confidence, boundingBox, personId, name, emotions, smile, ageRange, landmarks, type: personType, profileS3Key } = face;
 
     if (confidence === undefined || !boundingBox) {
         throw new Error("Invalid face data, need confidence and bounding box");
     }
 
     try {
-        const person = await findOrCreatePerson(personId, name, personType, boundingBox, storageItemId);
+        const person = await findOrCreatePerson(personId, name, personType, profileS3Key);
 
         const createdFace = await prisma.face.create({
             data: {

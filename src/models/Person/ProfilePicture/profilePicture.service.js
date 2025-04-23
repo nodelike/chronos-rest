@@ -1,5 +1,4 @@
 import logger from "../../../lib/logger.js";
-
 import prisma from "../../../lib/prisma.js";
 
 export const setProfilePicture = async (personId, s3Key) => {
