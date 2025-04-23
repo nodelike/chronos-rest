@@ -1,4 +1,4 @@
-import { createPerson, getPersonById, getPeople, deletePerson, findOrCreatePerson } from "./person.service.js";
+import { createPerson, getPersonById, getPeople, deletePerson } from "./person.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
 

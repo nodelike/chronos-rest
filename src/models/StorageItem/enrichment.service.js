@@ -1,5 +1,5 @@
 import { getStorageItemById } from "./storageItem.service.js";
-import { createFace } from "../Face/face.service.js";
+import { createFace } from "../Person/Face/face.service.js";
 import { createMediaMeta } from "./MediaMeta/mediaMeta.service.js";
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";

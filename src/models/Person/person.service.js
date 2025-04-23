@@ -1,7 +1,8 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
+import { createProfilePicture } from "./ProfilePicture/profilePicture.service.js";
 
-export const createPerson = async (name, type = "PERSON") => {
+export const createPerson = async (name, type = "PERSON", boundingBox, storageItemId) => {
     try {
         const person = await prisma.person.create({
             data: {
@@ -9,7 +10,7 @@ export const createPerson = async (name, type = "PERSON") => {
                 type
             }
         });
-
+        await createProfilePicture(person.id, boundingBox, storageItemId);
         return person;
     } catch (error) {
         logger.error("Error creating person:", error);
@@ -129,26 +130,15 @@ export const deletePerson = async (id) => {
     }
 };
 
-export const findOrCreatePerson = async (personId, name, type) => {
+export const findOrCreatePerson = async (personId, name, type, boundingBox, storageItemId) => {
     try {
         if (!personId) {
-            return await createPerson(name, type);
+            const person = await createPerson(name, type, boundingBox, storageItemId);
+            return person;
         }
         return await getPersonById(personId);
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
-        throw error;
-    }
-};
-
-export const setPersonProfilePicture = async (personId, faceId) => {
-    try {
-        await prisma.person.update({
-            where: { id: personId },
-            data: { profilePictureId: faceId }
-        });
-    } catch (error) {
-        logger.error(`Error setting profile picture for person ${personId}:`, error);
         throw error;
     }
 };

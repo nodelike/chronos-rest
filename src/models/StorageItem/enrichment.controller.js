@@ -1,5 +1,5 @@
 import { processEnrichment } from "./enrichment.service.js";
-import { getUniqueFaces } from "../Face/face.service.js";
+import { getProfilePictures } from "../Person/ProfilePicture/profilePicture.service.js";
 import { errorResponse, successResponse } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
 
@@ -20,12 +20,12 @@ export const processEnrichmentHandler = async (req, res, next) => {
     }
 };
 
-export const getUniqueFacesHandler = async (req, res, next) => {
+export const getProfilePicturesHandler = async (req, res, next) => {
     try {
-        const face = await getUniqueFaces();
-        return res.status(200).json(successResponse("Face detections retrieved successfully", face));
+        const profilePictures = await getProfilePictures();
+        return res.status(200).json(successResponse("Profile pictures retrieved successfully", profilePictures));
     } catch (error) {
-        logger.error("Error getting face detections for comparison:", error);
+        logger.error("Error getting profile pictures:", error);
         next(error);
     }
 };

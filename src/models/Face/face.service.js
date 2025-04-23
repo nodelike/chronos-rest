@@ -1,4 +1,4 @@
-import { findOrCreatePerson, setPersonProfilePicture } from "../Person/person.service.js";
+import { findOrCreatePerson } from "../Person/person.service.js";
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
 import { extractKeyFromUri } from "../../lib/s3Service.js";
@@ -13,7 +13,6 @@ export const createFace = async (face, storageItemId) => {
     try {
         const person = await findOrCreatePerson(personId, name, personType);
 
-        // Now create the face with the person relation
         const createdFace = await prisma.face.create({
             data: {
                 confidence: parseFloat(confidence),
@@ -33,16 +32,128 @@ export const createFace = async (face, storageItemId) => {
                     },
                 },
             },
+            include: {
+                storageItem: true,
+                person: true
+            },
         });
-
-        if (!person.profilePictureId) {
-            await setPersonProfilePicture(person.id, createdFace.id);
-        }
-
-        return { success: true, message: "Face created successfully" };
+        return { success: true, message: "Face created successfully", face: createdFace };
     } catch (error) {
         logger.error(`Error creating face:`, error);
         throw error;
+    }
+};
+
+// Helper function to create a profile picture from a face detection
+export const createProfilePictureFromFace = async (personId, faceId, boundingBox, storageItem) => {
+    try {
+        const originalImageKey = extractKeyFromUri(storageItem.uri);
+        if (!originalImageKey) {
+            logger.error(`Invalid S3 URI for storage item: ${storageItem.uri}`);
+            return { success: false, message: "Invalid S3 URI" };
+        }
+
+        // Now we need to extract the thumbnail from the original image using the face bounding box
+        try {
+            // Get the original image from S3
+            const AWS = await import("aws-sdk");
+            const s3 = new AWS.S3({
+                region: process.env.AWS_REGION,
+                endpoint: process.env.AWS_S3_ENDPOINT,
+                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                s3ForcePathStyle: true
+            });
+            
+            const originalImage = await s3.getObject({
+                Bucket: process.env.AWS_BUCKET_NAME,
+                Key: originalImageKey
+            }).promise();
+
+            // Extract dimensions from the bounding box
+            const { width, height, left, top } = extractBoundingBoxDimensions(boundingBox);
+            
+            // Create a thumbnail from the face region
+            const thumbnailBuffer = await sharp(originalImage.Body)
+                .extract({
+                    left: Math.floor(left),
+                    top: Math.floor(top),
+                    width: Math.floor(width),
+                    height: Math.floor(height)
+                })
+                .resize(200, 200, {
+                    fit: 'cover',
+                    position: 'center'
+                })
+                .toBuffer();
+
+            // Upload the thumbnail to S3
+            const thumbnailKey = `profile-pictures/${personId}/${uuidv4()}.jpg`;
+            const uploadResult = await uploadBuffer(thumbnailBuffer, thumbnailKey, 'image/jpeg');
+
+            // Check if a profile picture already exists for this person
+            const existingProfilePicture = await prisma.profilePicture.findUnique({
+                where: { personId }
+            });
+
+            if (existingProfilePicture) {
+                // Update the existing profile picture
+                await prisma.profilePicture.update({
+                    where: { id: existingProfilePicture.id },
+                    data: {
+                        uri: uploadResult.Location
+                    }
+                });
+            } else {
+                // Create a new ProfilePicture entry
+                await prisma.profilePicture.create({
+                    data: {
+                        personId,
+                        uri: uploadResult.Location
+                    }
+                });
+            }
+
+            // Update the person with the faceId as profilePictureId
+            await prisma.person.update({
+                where: { id: personId },
+                data: { profilePictureId: faceId }
+            });
+
+            logger.info(`Created/updated profile picture for person ${personId}`);
+            return { success: true, message: "Profile picture created successfully" };
+        } catch (error) {
+            logger.error(`Error creating thumbnail for person ${personId}:`, error);
+            return { success: false, message: "Error creating thumbnail" };
+        }
+    } catch (error) {
+        logger.error(`Error creating profile picture for person ${personId}:`, error);
+        throw error;
+    }
+};
+
+// Helper function to extract dimensions from bounding box
+function extractBoundingBoxDimensions(boundingBox) {
+    // Handle different possible bounding box formats
+    if (boundingBox.Width !== undefined) {
+        // AWS Rekognition format
+        return {
+            width: boundingBox.Width * 100,
+            height: boundingBox.Height * 100,
+            left: boundingBox.Left * 100,
+            top: boundingBox.Top * 100
+        };
+    } else if (boundingBox.width !== undefined) {
+        // Standard format
+        return boundingBox;
+    } else {
+        // Default fallback
+        return {
+            width: 100,
+            height: 100,
+            left: 0,
+            top: 0
+        };
     }
 };
 
@@ -106,4 +217,5 @@ export const getUniqueFaces = async () => {
 
 export default {
     createFace,
+    createProfilePictureFromFace
 };

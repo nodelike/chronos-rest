@@ -16,6 +16,32 @@ const s3Client = new S3Client({
 
 const bucketName = process.env.AWS_BUCKET_NAME;
 
+export const uploadBuffer = async (buffer, key, contentType) => {
+    try {
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            Body: buffer,
+            ContentType: contentType,
+        });
+
+        const uploadResult = await s3Client.send(command);
+
+        const url = `${process.env.AWS_S3_ENDPOINT}/${bucketName}/${key}`;
+
+        return {
+            success: true,
+            uri: url,
+            key: key,
+            bucket: bucketName,
+            etag: uploadResult.ETag,
+        };
+    } catch (error) {
+        logger.error("Error uploading buffer to S3:", error);
+        throw error;
+    }
+};
+
 export const uploadFile = async (buffer, originalName, mimeType, folder = "uploads") => {
     try {
         const fileExtension = originalName.split(".").pop();
@@ -136,10 +162,33 @@ export const replaceWithPresignedUrls = async (item) => {
     }
 };
 
+export const getObjectByUri = async (uri) => {
+    const key = extractKeyFromUri(uri);
+    if (!key) {
+        logger.error(`Invalid S3 URI: ${uri}`);
+        throw new Error("Invalid S3 URI");
+    }
+
+    try {
+        const command = new GetObjectCommand({
+            Bucket: bucketName,
+            Key: key
+        });
+
+        const response = await s3Client.send(command);
+        return response;
+    } catch (error) {
+        logger.error(`Error getting object from S3: ${key}`, error);
+        throw error;
+    }
+};
+
 export default {
     uploadFile,
+    uploadBuffer,
     deleteFile,
     getPresignedUrl,
     extractKeyFromUri,
-    replaceWithPresignedUrls
+    replaceWithPresignedUrls,
+    getObjectByUri,
 };

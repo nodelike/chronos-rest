@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,19 +8,18 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  username      String?
-  password      String
-  isVerified    Boolean  @default(false)
-  verificationCode String?
-  verificationCodeExpires DateTime? @db.Timestamptz
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-
-  storageItems  StorageItem[]
-  chronicles    Chronicle[]
+  id                      String        @id @default(uuid())
+  email                   String        @unique
+  username                String?
+  password                String
+  isVerified              Boolean       @default(false)
+  verificationCode        String?
+  verificationCodeExpires DateTime?     @db.Timestamptz(6)
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  deletedAt               DateTime?
+  chronicles              Chronicle[]
+  storageItems            StorageItem[]
 
   @@map("users")
 }
@@ -38,7 +34,172 @@ model Utils {
   @@map("utils")
 }
 
-// Enums
+model StorageItem {
+  id            String             @id @default(uuid())
+  uri           String
+  fileName      String
+  fileSize      BigInt
+  mimeType      String
+  type          ChronicleItemType
+  source        ContentSource
+  collectorType CollectorType?
+  userId        String
+  createdAt     DateTime           @default(now())
+  processedAt   DateTime?
+  deletedAt     DateTime?
+  rawMeta       Json?
+  chronicleRefs ChronicleStorage[]
+  face          Face[]
+  mediaMeta     MediaMeta[]
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialMetas   SocialMeta[]       @relation("SocialMetaToStorageItem")
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([processedAt])
+  @@map("storage_items")
+}
+
+model MediaMeta {
+  id      String      @id @default(uuid())
+  type    MetaType
+  payload Json
+  itemId  String
+  item    StorageItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@map("media_meta")
+}
+
+model Face {
+  id            String      @id @default(uuid())
+  confidence    Float
+  boundingBox   Json
+  emotions      Json?
+  smile         Json?
+  ageRange      Json?
+  landmarks     Json?
+  storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
+  storageItemId String
+  person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId      String
+  createdAt     DateTime    @default(now())
+
+  @@map("face_detections")
+}
+
+model Person {
+  id               String           @id @default(uuid())
+  name             String?
+  type             PersonType       @default(PERSON)
+  celebrityInfo    Json?
+  storageItemId    String?          @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  face             Face[]
+  profilePicture   ProfilePicture?
+  relationsFrom    PersonRelation[] @relation("RelationFrom") 
+  relationsTo      PersonRelation[] @relation("RelationTo")
+  socialProfiles   SocialProfile[]
+
+  @@map("people")
+}
+
+model ProfilePicture {
+  id String @id @default(uuid())
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String @unique
+  uri      String
+
+  @@map("profile_pictures")
+}
+
+model PersonRelation {
+  id         String             @id @default(uuid())
+  fromId     String
+  toId       String
+  type       PersonRelationType
+  createdAt  DateTime           @default(now())
+  fromPerson Person             @relation("RelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toPerson   Person             @relation("RelationTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@map("person_relations")
+}
+
+model SocialProfile {
+  id         String         @id @default(uuid())
+  platform   SocialPlatform
+  handle     String
+  profileUrl String
+  bio        String?
+  personId   String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  posts      SocialMeta[]
+  person     Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@map("social_profiles")
+}
+
+model SocialMeta {
+  id              String         @id @default(uuid())
+  platform        SocialPlatform
+  postUrl         String
+  content         String
+  postedAt        DateTime       @default(now())
+  authorProfileId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  authorProfile   SocialProfile? @relation(fields: [authorProfileId], references: [id])
+  hashtags        Hashtag[]      @relation("HashtagToSocialMeta")
+  attachments     StorageItem[]  @relation("SocialMetaToStorageItem")
+
+  @@map("social_meta")
+}
+
+model Hashtag {
+  id          String       @id @default(uuid())
+  tag         String       @unique
+  socialMetas SocialMeta[] @relation("HashtagToSocialMeta")
+
+  @@map("hashtags")
+}
+
+model ChronicleStorage {
+  chronicleId String
+  storageId   String
+  order       Int?
+  notes       String?
+  chronicle   Chronicle   @relation(fields: [chronicleId], references: [id], onDelete: Cascade)
+  storage     StorageItem @relation(fields: [storageId], references: [id], onDelete: Cascade)
+
+  @@id([chronicleId, storageId])
+  @@map("chronicle_storage")
+}
+
+model Chronicle {
+  id          String             @id @default(uuid())
+  title       String
+  description String?
+  tags        String[]
+  startDate   DateTime?
+  endDate     DateTime?
+  userId      String
+  body        Json
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+  storageRefs ChronicleStorage[]
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([title])
+  @@index([tags])
+  @@index([startDate, endDate])
+  @@map("chronicles")
+}
+
 enum ChronicleItemType {
   PHOTO
   VIDEO
@@ -101,196 +262,4 @@ enum MetaType {
   CUSTOM_LABEL
   CONTENT_MODERATION
   OTHER
-}
-
-// Storage Unit: Raw & Enriched Media
-model StorageItem {
-  id              String           @id @default(uuid())
-  uri             String
-  fileName        String
-  fileSize        BigInt
-  mimeType        String
-  type            ChronicleItemType
-  source          ContentSource    // standardized source
-  collectorType   CollectorType?
-  userId          String
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime         @default(now())
-  processedAt     DateTime?
-  deletedAt       DateTime?
-
-  rawMeta     Json?            // EXIF, calendar ICS, tweet payload, etc.
-
-  // Consolidated metadata approach
-  mediaMeta       MediaMeta[]
-
-  face  Face[]
-
-  // Used as profile pictures for Person - one-to-one relation
-  profileFor      Person?          @relation("ProfileStorage")
-  socialMetas     SocialMeta[]     
-  
-  // Explicit many-to-many with Chronicles
-  chronicleRefs   ChronicleStorage[]
-
-  @@index([userId, createdAt])
-  @@index([type])
-  @@index([processedAt])
-  @@map("storage_items")
-}
-
-// Consolidated metadata model
-model MediaMeta {
-  id              String       @id @default(uuid())
-  type            MetaType
-  payload         Json
-  item            StorageItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  itemId          String
-
-  @@index([type])
-  @@map("media_meta")
-}
-
-// Each detected face instance links a StorageItem to a Person
-model Face {
-  id              String     @id @default(uuid())
-  confidence      Float      // 0.0–1.0
-  boundingBox     Json      // { x, y, width, height }
-  emotions        Json?      // optionally store emotions
-  smile           Json?   
-  ageRange        Json?      // optionally store age range
-  landmarks       Json?      // optionally store landmarks
-  storageItem     StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
-  storageItemId   String
-  person          Person     @relation("PersonFaces", fields: [personId], references: [id], onDelete: Cascade)
-  personId        String
-  profileFor      Person?    @relation("ProfilePicture")
-  createdAt       DateTime   @default(now())
-
-  @@map("face_detections")
-}
-
-// A canonical person in your system
-model Person {
-  id                  String             @id @default(uuid())
-  name                String?
-  type                PersonType         @default(PERSON)
-  celebrityInfo       Json?             // Store URLs, profession, and other celebrity-specific data
-
-  profilePicture      Face?    @relation("ProfilePicture", fields: [profilePictureId], references: [id])
-  profilePictureId    String?            @unique
-
-  storageItem         StorageItem?      @relation("ProfileStorage", fields: [storageItemId], references: [id])
-  storageItemId       String?            @unique
-
-  socialProfiles      SocialProfile[]
-
-  face                Face[]   @relation("PersonFaces")
-
-  relationsFrom       PersonRelation[]   @relation("RelationFrom")
-  relationsTo         PersonRelation[]   @relation("RelationTo")
-
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  deletedAt           DateTime?
-
-  @@map("people")
-}
-
-// Link two People together (friend, colleague, etc.)
-model PersonRelation {
-  id               String             @id @default(uuid())
-  fromPerson       Person             @relation("RelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
-  fromId           String
-  toPerson         Person             @relation("RelationTo", fields: [toId], references: [id], onDelete: Cascade)
-  toId             String
-  type             PersonRelationType
-  createdAt        DateTime           @default(now())
-
-  @@map("person_relations")
-}
-
-// The real person's account on a social platform
-model SocialProfile {
-  id               String         @id @default(uuid())
-  platform         SocialPlatform
-  handle           String         // e.g. "@jane_doe"
-  profileUrl       String
-  bio              String?
-  person           Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
-  personId         String
-  posts            SocialMeta[]
-
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  @@map("social_profiles")
-}
-
-model SocialMeta {
-  id                String           @id @default(uuid())
-  platform          SocialPlatform
-  postUrl           String
-  content           String
-  postedAt          DateTime         @default(now())
-  authorProfile     SocialProfile?   @relation(fields: [authorProfileId], references: [id], onDelete: SetNull)
-  authorProfileId   String?
-
-  attachments       StorageItem[]
-  hashtags          Hashtag[]        // Many-to-many for better querying
-
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  @@map("social_meta")
-}
-
-// Separate hashtag model for better querying
-model Hashtag {
-  id               String         @id @default(uuid())
-  tag              String         @unique
-  socialMetas      SocialMeta[]
-  
-  @@map("hashtags")
-}
-
-// Explicit join table for Chronicle-StorageItem relationship
-model ChronicleStorage {
-  chronicle        Chronicle     @relation(fields: [chronicleId], references: [id], onDelete: Cascade)
-  chronicleId      String
-  storage          StorageItem   @relation(fields: [storageId], references: [id], onDelete: Cascade)
-  storageId        String
-  order            Int?
-  notes            String?
-
-  @@id([chronicleId, storageId])
-  @@map("chronicle_storage")
-}
-
-// Chronicle: The narrative + embedded references
-model Chronicle {
-  id            String         @id @default(uuid())
-  title         String
-  description   String?
-  tags          String[]
-  startDate     DateTime?
-  endDate       DateTime?
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  body          Json           // markdown or portable text with embedded StorageItem IDs
-  
-  // Explicit many-to-many with StorageItems
-  storageRefs   ChronicleStorage[]
-
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
-
-  @@index([userId, createdAt])
-  @@index([title])
-  @@index([tags])
-  @@index([startDate, endDate])
-  @@map("chronicles")
 }
