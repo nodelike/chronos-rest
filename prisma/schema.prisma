@@ -110,7 +110,7 @@ model ProfilePicture {
   id String @id @default(uuid())
   person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
   personId String @unique
-  uri      String
+  s3Key    String
 
   @@map("profile_pictures")
 }

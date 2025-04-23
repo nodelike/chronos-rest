@@ -1,30 +1,19 @@
-import { uploadBuffer, getObjectByUri } from "../../../lib/s3Service.js";
-import { thumbnailFromImage, streamToBuffer } from "./profilePicture.utils.js";
-import { v4 as uuidv4 } from "uuid";
 import logger from "../../../lib/logger.js";
 
 import prisma from "../../../lib/prisma.js";
-import { getStorageItemById } from "../../StorageItem/storageItem.service.js";
 
-export const createProfilePicture = async (personId, boundingBox, storageItemId) => {
-    const storageItem = await getStorageItemById(storageItemId);
+export const setProfilePicture = async (personId, s3Key) => {
     try {
-        const originalImage = await getObjectByUri(storageItem.uri);
-        const imageBuffer = await streamToBuffer(originalImage.Body);
-        const thumbnailBuffer = await thumbnailFromImage(imageBuffer, boundingBox);
-        const thumbnailKey = `profile-pictures/${personId}/${uuidv4()}.jpg`;
-        const uploadResult = await uploadBuffer(thumbnailBuffer, thumbnailKey, "image/jpeg");
-
         const profilePicture = await prisma.profilePicture.create({
             data: {
                 personId,
-                uri: uploadResult.uri,
+                s3Key,
             },
         });
 
         return profilePicture;
     } catch (error) {
-        logger.error(`Error creating thumbnail for person ${personId}:`, error);
+        logger.error(`Error setting profile picture for person ${personId}:`, error);
         throw error;
     }
 };
