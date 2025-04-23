@@ -1,6 +1,6 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
-import { setProfilePicture } from "./ProfilePicture/profilePicture.service.js";
+import { createProfilePicture } from "./ProfilePicture/profilePicture.service.js";
 
 export const createPerson = async (name, type = "PERSON", profileS3Key) => {
     try {
@@ -10,7 +10,7 @@ export const createPerson = async (name, type = "PERSON", profileS3Key) => {
                 type
             }
         });
-        await setProfilePicture(person.id, profileS3Key);
+        await createProfilePicture(person.id, profileS3Key);
         return person;
     } catch (error) {
         logger.error("Error creating person:", error);
