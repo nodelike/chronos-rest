@@ -16,20 +16,25 @@ export const processEnrichment = async (storageItemId, enrichmentData) => {
         let hasUpdates = false;
 
         if (mediaMeta && Array.isArray(mediaMeta) && mediaMeta.length > 0) {
-            for (const meta of mediaMeta) {
-                if (!meta.type || !meta.payload) {
-                    continue;
-                }
-                await createMediaMeta(meta, storageItemId);
-                hasUpdates = true;
-            }
+            // Process media metadata in parallel
+            await Promise.all(
+                mediaMeta.map(async (meta) => {
+                    if (!meta.type || !meta.payload) {
+                        return;
+                    }
+                    await createMediaMeta(meta, storageItemId);
+                })
+            );
+            hasUpdates = true;
         }
 
         if (faces && Array.isArray(faces) && faces.length > 0) {
-            for (const face of faces) {
-                await createFace(face, storageItemId);
-                hasUpdates = true;
-            }
+            await Promise.all(
+                faces.map(async (face) => {
+                    await createFace(face, storageItemId);
+                })
+            );
+            hasUpdates = true;
         }
 
         if (hasUpdates) {
