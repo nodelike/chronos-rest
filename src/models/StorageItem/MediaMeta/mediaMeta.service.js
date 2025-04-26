@@ -3,7 +3,7 @@ import logger from "../../../lib/logger.js";
 
 export const createMediaMeta = async (mediaMeta, storageItemId) => {
     const { type, payload } = mediaMeta;
-
+    
     try {
         const mediaMeta = await prisma.mediaMeta.create({
             data: {

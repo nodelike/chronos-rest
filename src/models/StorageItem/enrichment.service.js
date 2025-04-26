@@ -22,6 +22,16 @@ export const processEnrichment = async (storageItemId, enrichmentData) => {
                     if (!meta.type || !meta.payload) {
                         return;
                     }
+
+                    if (typeof meta.payload === 'object') {
+                        if (Array.isArray(meta.payload) && meta.payload.length === 0) {
+                            return;
+                        }
+                        
+                        if (!Array.isArray(meta.payload) && Object.keys(meta.payload).length === 0) {
+                            return;
+                        }
+                    }
                     await createMediaMeta(meta, storageItemId);
                 })
             );
