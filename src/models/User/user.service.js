@@ -6,10 +6,9 @@ import { sendVerificationEmail } from "../../lib/emailService.js";
 
 export const findUserByEmail = async (email) => {
     try {
-        const user = await prisma.user.findUnique({
+        return await prisma.user.findUnique({
             where: { email },
         });
-        return user;
     } catch (error) {
         logger.error("Error finding user by email:", error);
         return null;
@@ -26,11 +25,11 @@ export const createUser = async (userData) => {
 
         // Hash the password
         const hashedPassword = await hashPassword(userData.password);
-        
+
         // Generate verification code
         const verificationCode = generateVerificationCode();
         const verificationCodeExpires = new Date(Date.now() + 10 * 60000); // 10 minutes
-        
+
         // Create user with verification code
         const newUser = await prisma.user.create({
             data: {
@@ -44,7 +43,7 @@ export const createUser = async (userData) => {
 
         // Send verification email
         await sendVerificationEmail(userData.email, verificationCode);
-        
+
         // Remove sensitive data before returning
         const { password, verificationCode: code, ...userToReturn } = newUser;
         return userToReturn;
@@ -124,7 +123,7 @@ export const saveUserToken = async (userId, userData) => {
         // Generate new token
         const token = generateToken(userData);
         const tokenExpiry = calculateTokenExpiry();
-        
+
         // Save token to database
         await prisma.user.update({
             where: { id: userId },
@@ -133,7 +132,7 @@ export const saveUserToken = async (userId, userData) => {
                 tokenExpiry,
             },
         });
-        
+
         return { token, tokenExpiry };
     } catch (error) {
         logger.error("Error saving user token:", error);
@@ -147,19 +146,19 @@ export const validateUserToken = async (userId, token) => {
             where: { id: userId },
             select: { token: true, tokenExpiry: true },
         });
-        
+
         if (!user || !user.token) {
             return false;
         }
-        
+
         if (user.token !== token) {
             return false;
         }
-        
+
         if (user.tokenExpiry && user.tokenExpiry < new Date()) {
             return false;
         }
-        
+
         return true;
     } catch (error) {
         logger.error("Error validating user token:", error);
@@ -176,7 +175,7 @@ export const invalidateUserToken = async (userId) => {
                 tokenExpiry: null,
             },
         });
-        
+
         return true;
     } catch (error) {
         logger.error("Error invalidating user token:", error);
@@ -189,11 +188,11 @@ export const getPublicUserProfile = async (email) => {
         const user = await prisma.user.findUnique({
             where: { email },
         });
-        
+
         if (!user) {
             return null;
         }
-        
+
         const { password, verificationCode, verificationCodeExpires, ...userProfile } = user;
         return userProfile;
     } catch (error) {
@@ -210,5 +209,5 @@ export default {
     saveUserToken,
     validateUserToken,
     invalidateUserToken,
-    getPublicUserProfile
-}; 
+    getPublicUserProfile,
+};

@@ -30,14 +30,12 @@ export const login = async (req, res) => {
 
                 await sendVerificationEmail(email, verificationCode);
 
-                return res
-                    .status(200)
-                    .json(
-                        successResponse("Verification code sent to your email.", {
-                            requiresVerification: true,
-                            email,
-                        })
-                    );
+                return res.status(200).json(
+                    successResponse("Verification code sent to your email.", {
+                        requiresVerification: true,
+                        email,
+                    })
+                );
             }
 
             // Create token payload
@@ -47,7 +45,12 @@ export const login = async (req, res) => {
                 username: user.username,
             };
 
-            const { token } = await saveUserToken(user.id, tokenPayload);
+            let token = user.token;
+
+            if (!token || !user.tokenExpiry || new Date(user.tokenExpiry) < new Date()) {
+                const tokenData = await saveUserToken(user.id, tokenPayload);
+                token = tokenData.token;
+            }
 
             const { token: userToken, tokenExpiry, ...userData } = user;
 
@@ -57,8 +60,7 @@ export const login = async (req, res) => {
                     user: userData,
                 })
             );
-        }
-        else {
+        } else {
             const result = await createUser({
                 email,
                 password,
@@ -101,7 +103,7 @@ export const verify = async (req, res) => {
             username: user.username,
         };
 
-        // Save token to database
+        // Always generate a new token after verification (first time user)
         const { token } = await saveUserToken(user.id, tokenPayload);
 
         const { password: userPassword, verificationCode, verificationCodeExpires, token: userToken, tokenExpiry, ...userData } = user;
@@ -121,16 +123,16 @@ export const verify = async (req, res) => {
 export const logout = async (req, res) => {
     try {
         const userId = req.user.id;
-        
+
         // Invalidate the token in the database
         await prisma.user.update({
             where: { id: userId },
             data: {
                 token: null,
-                tokenExpiry: null
-            }
+                tokenExpiry: null,
+            },
         });
-        
+
         return res.status(200).json(successResponse("Logout successful"));
     } catch (error) {
         logger.error("Logout error:", error);
@@ -141,5 +143,5 @@ export const logout = async (req, res) => {
 export default {
     login,
     verify,
-    logout
+    logout,
 };
