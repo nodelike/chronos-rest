@@ -1,5 +1,5 @@
-import { findUserByEmail, createUser, verifyUser } from "./user.service.js";
-import { comparePassword, generateToken, generateVerificationCode } from "../../lib/auth.js";
+import { findUserByEmail, createUser, verifyUser, saveUserToken } from "./user.service.js";
+import { comparePassword, generateVerificationCode } from "../../lib/auth.js";
 import { successResponse, errorResponse } from "../../lib/helpers.js";
 import { sendVerificationEmail } from "../../lib/emailService.js";
 import prisma from "../../lib/prisma.js";
@@ -40,14 +40,16 @@ export const login = async (req, res) => {
                     );
             }
 
-            // Generate JWT token
-            const token = generateToken({
+            // Create token payload
+            const tokenPayload = {
                 id: user.id,
                 email: user.email,
                 username: user.username,
-            });
+            };
 
-            const { ...userData } = user;
+            const { token } = await saveUserToken(user.id, tokenPayload);
+
+            const { token: userToken, tokenExpiry, ...userData } = user;
 
             return res.status(200).json(
                 successResponse("Login successful", {
@@ -92,14 +94,17 @@ export const verify = async (req, res) => {
             return res.status(404).json(errorResponse("User not found after verification", 404));
         }
 
-        // Generate token for the verified user
-        const token = generateToken({
+        // Create token payload
+        const tokenPayload = {
             id: user.id,
             email: user.email,
             username: user.username,
-        });
+        };
 
-        const { ...userData } = user;
+        // Save token to database
+        const { token } = await saveUserToken(user.id, tokenPayload);
+
+        const { password: userPassword, verificationCode, verificationCodeExpires, token: userToken, tokenExpiry, ...userData } = user;
 
         return res.status(200).json(
             successResponse(result.message, {
@@ -113,7 +118,28 @@ export const verify = async (req, res) => {
     }
 };
 
+export const logout = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Invalidate the token in the database
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                token: null,
+                tokenExpiry: null
+            }
+        });
+        
+        return res.status(200).json(successResponse("Logout successful"));
+    } catch (error) {
+        logger.error("Logout error:", error);
+        return res.status(500).json(errorResponse("An error occurred during logout", 500));
+    }
+};
+
 export default {
     login,
     verify,
+    logout
 };

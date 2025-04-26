@@ -1,14 +1,16 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
-import { hashPassword, generateVerificationCode } from "../../lib/auth.js";
+import { hashPassword, generateVerificationCode, generateToken, calculateTokenExpiry } from "../../lib/auth.js";
 import { isSignupEnabled } from "../../lib/utilsService.js";
 import { sendVerificationEmail } from "../../lib/emailService.js";
 
 export const findUserByEmail = async (email) => {
     try {
-        return await prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
             where: { email },
         });
+        const { password, verificationCode, verificationCodeExpires, ...userProfile } = user;
+        return userProfile;
     } catch (error) {
         logger.error("Error finding user by email:", error);
         return null;
@@ -56,12 +58,6 @@ export const createUser = async (userData) => {
     }
 };
 
-/**
- * Verify a user's email with verification code
- * @param {string} email - User email
- * @param {string} code - Verification code
- * @returns {Promise<Object>} Result object with success status
- */
 export const verifyUser = async (email, code) => {
     try {
         const user = await prisma.user.findUnique({
@@ -105,11 +101,6 @@ export const verifyUser = async (email, code) => {
     }
 };
 
-/**
- * Get user profile data (excludes sensitive information)
- * @param {string} userId - User ID
- * @returns {Promise<Object|null>} User profile data or null
- */
 export const getUserProfile = async (userId) => {
     try {
         const user = await prisma.user.findUnique({
@@ -129,9 +120,77 @@ export const getUserProfile = async (userId) => {
     }
 };
 
+export const saveUserToken = async (userId, userData) => {
+    try {
+        // Generate new token
+        const token = generateToken(userData);
+        const tokenExpiry = calculateTokenExpiry();
+        
+        // Save token to database
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                token,
+                tokenExpiry,
+            },
+        });
+        
+        return { token, tokenExpiry };
+    } catch (error) {
+        logger.error("Error saving user token:", error);
+        throw new Error("Failed to save authentication token");
+    }
+};
+
+export const validateUserToken = async (userId, token) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { token: true, tokenExpiry: true },
+        });
+        
+        if (!user || !user.token) {
+            return false;
+        }
+        
+        if (user.token !== token) {
+            return false;
+        }
+        
+        if (user.tokenExpiry && user.tokenExpiry < new Date()) {
+            return false;
+        }
+        
+        return true;
+    } catch (error) {
+        logger.error("Error validating user token:", error);
+        return false;
+    }
+};
+
+export const invalidateUserToken = async (userId) => {
+    try {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                token: null,
+                tokenExpiry: null,
+            },
+        });
+        
+        return true;
+    } catch (error) {
+        logger.error("Error invalidating user token:", error);
+        return false;
+    }
+};
+
 export default {
     findUserByEmail,
     createUser,
     verifyUser,
-    getUserProfile
+    getUserProfile,
+    saveUserToken,
+    validateUserToken,
+    invalidateUserToken
 }; 

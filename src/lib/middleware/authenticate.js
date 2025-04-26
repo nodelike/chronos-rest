@@ -1,7 +1,8 @@
 import { verifyToken } from "../auth.js";
+import { validateUserToken } from "../../models/User/user.service.js";
 import { errorResponse } from "../helpers.js";
 
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
@@ -18,6 +19,13 @@ export const authenticate = (req, res, next) => {
 
     if (!decoded) {
         return res.status(401).json(errorResponse("Invalid or expired token", 401));
+    }
+    
+    // Validate token against database entry
+    const isValid = await validateUserToken(decoded.id, token);
+    
+    if (!isValid) {
+        return res.status(401).json(errorResponse("Token is invalid", 401));
     }
 
     req.user = decoded;

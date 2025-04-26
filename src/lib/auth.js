@@ -23,6 +23,39 @@ export const generateToken = (payload) => {
     });
 };
 
+export const calculateTokenExpiry = () => {
+    // Parse JWT_EXPIRES_IN from environment variable (e.g., "7d", "24h", "60m")
+    const expiresIn = process.env.JWT_EXPIRES_IN;
+    let seconds = 86400; // Default to 1 day if parsing fails
+    
+    try {
+        const unit = expiresIn.slice(-1);
+        const value = parseInt(expiresIn.slice(0, -1));
+        
+        switch(unit) {
+            case 's':
+                seconds = value;
+                break;
+            case 'm':
+                seconds = value * 60;
+                break;
+            case 'h':
+                seconds = value * 3600;
+                break;
+            case 'd':
+                seconds = value * 86400;
+                break;
+            default:
+                seconds = parseInt(expiresIn);
+                break;
+        }
+    } catch (error) {
+        logger.warn("Failed to parse JWT_EXPIRES_IN, using default expiry", error);
+    }
+    
+    return new Date(Date.now() + seconds * 1000);
+};
+
 export const verifyToken = (token) => {
     try {
         return jwt.verify(token, process.env.JWT_SECRET);
@@ -37,5 +70,6 @@ export default {
     hashPassword,
     comparePassword,
     generateToken,
-    verifyToken
+    verifyToken,
+    calculateTokenExpiry
 }; 
