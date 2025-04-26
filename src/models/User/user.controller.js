@@ -52,7 +52,7 @@ export const login = async (req, res) => {
                 token = tokenData.token;
             }
 
-            const { token: userToken, tokenExpiry, ...userData } = user;
+            const { password: userPassword, verificationCode, verificationCodeExpires, token: userToken, tokenExpiry, ...userData } = user;
 
             return res.status(200).json(
                 successResponse("Login successful", {
