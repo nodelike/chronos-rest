@@ -2,11 +2,12 @@ import logger from "../../../lib/logger.js";
 import prisma from "../../../lib/prisma.js";
 import { getPresignedUrl } from "../../../lib/s3Service.js";
 
-export const createProfilePicture = async (personId, s3Key) => {
+export const createProfilePicture = async (personId, s3Key, s3Url) => {
     try {
         const profilePicture = await prisma.profilePicture.create({
             data: {
                 s3Key,
+                s3Url,
                 person: {
                     connect: {
                         id: personId,
