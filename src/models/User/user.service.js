@@ -9,8 +9,7 @@ export const findUserByEmail = async (email) => {
         const user = await prisma.user.findUnique({
             where: { email },
         });
-        const { password, verificationCode, verificationCodeExpires, ...userProfile } = user;
-        return userProfile;
+        return user;
     } catch (error) {
         logger.error("Error finding user by email:", error);
         return null;
@@ -185,6 +184,24 @@ export const invalidateUserToken = async (userId) => {
     }
 };
 
+export const getPublicUserProfile = async (email) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { email },
+        });
+        
+        if (!user) {
+            return null;
+        }
+        
+        const { password, verificationCode, verificationCodeExpires, ...userProfile } = user;
+        return userProfile;
+    } catch (error) {
+        logger.error("Error getting public user profile:", error);
+        return null;
+    }
+};
+
 export default {
     findUserByEmail,
     createUser,
@@ -192,5 +209,6 @@ export default {
     getUserProfile,
     saveUserToken,
     validateUserToken,
-    invalidateUserToken
+    invalidateUserToken,
+    getPublicUserProfile
 }; 
