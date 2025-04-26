@@ -47,7 +47,7 @@ export const login = async (req, res) => {
                 username: user.username,
             });
 
-            const { password: pwd, verificationCode, verificationCodeExpires, ...userData } = user;
+            const { ...userData } = user;
 
             return res.status(200).json(
                 successResponse("Login successful", {
@@ -99,7 +99,7 @@ export const verify = async (req, res) => {
             username: user.username,
         });
 
-        const { password, verificationCode, verificationCodeExpires, ...userData } = user;
+        const { ...userData } = user;
 
         return res.status(200).json(
             successResponse(result.message, {

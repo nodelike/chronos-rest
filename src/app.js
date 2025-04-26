@@ -65,7 +65,7 @@ app.use((req, res, next) => {
 });
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
     // Log the error
     logger.error("Application error:", {
         error: err.message,

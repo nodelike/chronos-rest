@@ -3,6 +3,7 @@ import logger from "../../lib/logger.js";
 import { uploadFile, deleteFile, extractKeyFromUri, replaceWithPresignedUrls } from "../../lib/s3Service.js";
 import { extractImageMetadata, generateThumbnail } from "../../lib/imageMetadataService.js";
 import { publishEnrichmentEvent } from "../../lib/eventBridgeClient.js";
+import { StorageItemTypes } from "../../enums/storageItemTypes.js";
 
 export const createStorageItem = async (buffer, fileInfo, userId) => {
     try {
@@ -14,7 +15,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
 
         let rawMeta = {};
 
-        if (type === "PHOTO") {
+        if (type === StorageItemTypes.PHOTO) {
             rawMeta = await extractImageMetadata(buffer);
             if (Object.keys(rawMeta).length > 0) {
                 try {
@@ -42,8 +43,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
             },
         });
 
-        // Send enrichment event to EventBridge for processing
-        const fileTypes = ["PHOTO", "VIDEO", "AUDIO", "DOCUMENT"];
+        const fileTypes = [StorageItemTypes.PHOTO, StorageItemTypes.VIDEO, StorageItemTypes.AUDIO, StorageItemTypes.DOCUMENT];
         if (fileTypes.includes(type)) {
             const mediaType = type.toLowerCase();
 
@@ -338,7 +338,7 @@ export const createNonFileStorageItem = async (itemData) => {
         if (storageItem) {
             return storageItem;
         }
-        
+
         return storageItem;
     } catch (error) {
         logger.error("Error creating non-file storage item:", error);

@@ -73,12 +73,10 @@ model MediaMeta {
 
 model Face {
   id            String      @id @default(uuid())
-  confidence    Float
   boundingBox   Json
-  emotions      Json?
-  smile         Json?
-  ageRange      Json?
-  landmarks     Json?
+  emotions      String[]
+  age           Int?
+  gender        Gender?
   storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
   storageItemId String
   person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -88,11 +86,18 @@ model Face {
   @@map("face_detections")
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 model Person {
   id               String           @id @default(uuid())
   name             String?
   type             PersonType       @default(PERSON)
-  celebrityInfo    Json?
+  gender           Gender?
+  age              Int?
   storageItemId    String?          @unique
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -111,6 +116,7 @@ model ProfilePicture {
   person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
   personId String @unique
   s3Key    String
+  s3Url    String
 
   @@map("profile_pictures")
 }
