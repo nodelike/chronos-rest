@@ -67,6 +67,19 @@ export const getStorageItemById = async (id) => {
     try {
         const item = await prisma.storageItem.findUnique({
             where: { id },
+            include: {
+                mediaMeta: true,
+                face: {
+                    include: {
+                        person: {
+                            include: {
+                                profilePicture: true,
+                            },
+                        },
+                    },
+                },
+                socialMetas: true,
+            },
         });
 
         if (!item) return null;

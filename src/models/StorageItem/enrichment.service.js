@@ -31,6 +31,10 @@ export const processEnrichment = async (storageItemId, enrichmentData) => {
                         if (!Array.isArray(meta.payload) && Object.keys(meta.payload).length === 0) {
                             return;
                         }
+
+                        if (meta.type === "OCR" && !meta.payload.text) {
+                            return;
+                        }
                     }
                     await createMediaMeta(meta, storageItemId);
                 })

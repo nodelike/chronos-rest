@@ -147,6 +147,18 @@ export const replaceWithPresignedUrls = async (item) => {
             result.thumbnail = await getPresignedUrl(thumbnailKey);
         }
 
+        // Handle face detections and their associated persons with profile pictures
+        if (result.face && Array.isArray(result.face)) {
+            for (let i = 0; i < result.face.length; i++) {
+                if (result.face[i].person && result.face[i].person.profilePicture) {
+                    const profilePicKey = extractKeyFromUri(result.face[i].person.profilePicture.s3Url);
+                    if (profilePicKey) {
+                        result.face[i].person.profilePicture.s3Url = await getPresignedUrl(profilePicKey);
+                    }
+                }
+            }
+        }
+
         return result;
     } catch (error) {
         logger.error(`Error replacing URLs with presigned URLs for item ${item.id}:`, error);
