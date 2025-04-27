@@ -39,6 +39,7 @@ model Utils {
 model StorageItem {
   id            String             @id @default(uuid())
   uri           String
+  thumbnail     String?
   fileName      String
   fileSize      BigInt
   mimeType      String
@@ -49,7 +50,6 @@ model StorageItem {
   createdAt     DateTime           @default(now())
   processedAt   DateTime?
   deletedAt     DateTime?
-  rawMeta       Json?
   chronicleRefs ChronicleStorage[]
   face          Face[]
   mediaMeta     MediaMeta[]

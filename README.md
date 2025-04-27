@@ -165,7 +165,7 @@ Each storage item returned by the API includes:
 - Standard item metadata (id, fileName, fileSize, etc.)
 - `uri`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 - For images with thumbnails:
-  - `rawMeta.thumbnail`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
+  - `thumbnail`: A temporary secure URL for accessing the thumbnail, valid for 1 hour
 
 ## Current Implementation Status
 

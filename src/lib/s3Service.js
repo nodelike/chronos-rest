@@ -92,24 +92,21 @@ export const deleteFile = async (key) => {
 
 export const extractKeyFromUri = (uri) => {
     if (!uri) return null;
-    
+
     try {
         logger.debug(`Extracting key from URI: ${uri}`);
-        
+
         const url = new URL(uri);
-        let pathParts = url.pathname.split('/').filter(Boolean);
-        
-        
+        let pathParts = url.pathname.split("/").filter(Boolean);
+
         if (pathParts.length >= 2 && pathParts[0] === bucketName && pathParts[1] === bucketName) {
-            const extractedKey = pathParts.slice(1).join('/');
+            const extractedKey = pathParts.slice(1).join("/");
             return extractedKey;
-        } 
-        else if (pathParts[0] === bucketName) {
-            const extractedKey = pathParts.slice(1).join('/');
+        } else if (pathParts[0] === bucketName) {
+            const extractedKey = pathParts.slice(1).join("/");
             return extractedKey;
-        } 
-        else {
-            const extractedKey = pathParts.join('/');
+        } else {
+            const extractedKey = pathParts.join("/");
             return extractedKey;
         }
     } catch (error) {
@@ -136,25 +133,20 @@ export const getPresignedUrl = async (key, expiresIn = 3600) => {
 
 export const replaceWithPresignedUrls = async (item) => {
     if (!item) return null;
-    
+
     try {
         const result = { ...item };
-        
+
         const fileKey = extractKeyFromUri(item.uri);
         if (fileKey) {
             result.uri = await getPresignedUrl(fileKey);
         }
-        
-        if (item.rawMeta && item.rawMeta.thumbnail) {
-            const thumbnailKey = extractKeyFromUri(item.rawMeta.thumbnail);
-            if (thumbnailKey) {
-                result.rawMeta = { 
-                    ...item.rawMeta,
-                };
-                result.rawMeta.thumbnail = await getPresignedUrl(thumbnailKey);
-            }
+
+        const thumbnailKey = extractKeyFromUri(item.thumbnail);
+        if (thumbnailKey) {
+            result.thumbnail = await getPresignedUrl(thumbnailKey);
         }
-        
+
         return result;
     } catch (error) {
         logger.error(`Error replacing URLs with presigned URLs for item ${item.id}:`, error);
@@ -172,7 +164,7 @@ export const getObjectByUri = async (uri) => {
     try {
         const command = new GetObjectCommand({
             Bucket: bucketName,
-            Key: key
+            Key: key,
         });
 
         const response = await s3Client.send(command);

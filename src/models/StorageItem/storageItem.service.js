@@ -1,7 +1,7 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
 import { uploadFile, deleteFile, extractKeyFromUri, replaceWithPresignedUrls } from "../../lib/s3Service.js";
-import { extractImageMetadata, generateThumbnail } from "../../lib/imageMetadataService.js";
+import { generateThumbnail } from "../../lib/imageMetadataService.js";
 import { publishEnrichmentEvent } from "../../lib/eventBridgeClient.js";
 import { StorageItemTypes } from "../../enums/storageItemTypes.js";
 
@@ -13,32 +13,23 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
 
         const s3Result = await uploadFile(buffer, originalname, mimetype, type.toLowerCase());
 
-        let rawMeta = {};
-
+        let thumbnailResult;
         if (type === StorageItemTypes.PHOTO) {
-            rawMeta = await extractImageMetadata(buffer);
-            if (Object.keys(rawMeta).length > 0) {
-                try {
-                    const thumbnail = await generateThumbnail(buffer);
-                    const thumbnailResult = await uploadFile(thumbnail, `thumb_${originalname}`, mimetype, "thumbnails");
-                    rawMeta.thumbnail = thumbnailResult.url;
-                } catch (error) {
-                    logger.warn("Failed to generate thumbnail:", error);
-                }
-            }
+            const thumbnail = await generateThumbnail(buffer);
+            thumbnailResult = await uploadFile(thumbnail, `thumb_${originalname}`, mimetype, "thumbnails");
         }
 
         const storageItem = await prisma.storageItem.create({
             data: {
                 uri: s3Result.url,
                 fileName: originalname,
+                thumbnail: thumbnailResult.url,
                 fileSize: size,
                 mimeType: mimetype,
                 type,
                 source: "MANUAL",
                 collectorType: "MANUAL",
                 userId,
-                rawMeta,
                 processedAt: null,
             },
         });
@@ -52,8 +43,6 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
                     mimeType: mimetype,
                     fileName: originalname,
                     fileSize: size,
-                    // Include basic extracted metadata
-                    ...rawMeta,
                 });
 
                 if (publishResult) {
@@ -111,20 +100,6 @@ export const getStorageItems = async (options = {}) => {
         if (keyword) {
             where.OR = [
                 { fileName: { contains: keyword, mode: "insensitive" } },
-                // Search in rawMeta JSON fields
-                {
-                    rawMeta: {
-                        path: ["title"],
-                        string_contains: keyword,
-                    },
-                },
-                {
-                    rawMeta: {
-                        path: ["content"],
-                        string_contains: keyword,
-                    },
-                },
-                // Include URIs for link type items
                 { uri: { contains: keyword, mode: "insensitive" } },
             ];
         }
@@ -136,20 +111,6 @@ export const getStorageItems = async (options = {}) => {
             skip,
             take: limit,
             orderBy: { createdAt: "desc" },
-            include: {
-                // Include the consolidated metadata and related models
-                mediaMeta: true,
-                face: {
-                    include: {
-                        person: true,
-                    },
-                },
-                socialMetas: {
-                    include: {
-                        authorProfile: true,
-                    },
-                },
-            },
         });
 
         // Add presigned URLs to all items and their thumbnails
@@ -200,8 +161,8 @@ export const deleteStorageItem = async (id, userId) => {
             }
 
             // Delete thumbnail if it exists
-            if (storageItem.rawMeta && storageItem.rawMeta.thumbnail) {
-                const thumbnailKey = extractKeyFromUri(storageItem.rawMeta.thumbnail);
+            if (storageItem.thumbnail) {
+                const thumbnailKey = extractKeyFromUri(storageItem.thumbnail);
                 if (thumbnailKey) {
                     await deleteFile(thumbnailKey);
                 }
@@ -253,19 +214,13 @@ export const deleteStorageItem = async (id, userId) => {
 
 export const createNonFileStorageItem = async (itemData) => {
     try {
-        const { type, title, content, url, metadata, userId } = itemData;
+        const { type, title, url, metadata, userId } = itemData;
 
         let fileName = title || "Untitled";
         let mimeType = "application/json";
         let fileSize = 0;
 
         let uri = url || "";
-
-        let rawMeta = {
-            ...metadata,
-            title,
-            content,
-        };
 
         let storageItem;
 
@@ -288,7 +243,6 @@ export const createNonFileStorageItem = async (itemData) => {
                     source: "MANUAL_INPUT",
                     collectorType: "MANUAL",
                     userId,
-                    rawMeta,
                     geoMetaId: geoMeta.id,
                     processedAt: null,
                 },
@@ -304,7 +258,6 @@ export const createNonFileStorageItem = async (itemData) => {
                     source: "MANUAL_INPUT",
                     collectorType: "MANUAL",
                     userId,
-                    rawMeta,
                     processedAt: null,
                 },
             });
@@ -316,7 +269,6 @@ export const createNonFileStorageItem = async (itemData) => {
                 // For links, we don't have S3 keys, so we pass the URI in metadata
                 await publishEnrichmentEvent(storageItem.id, "link", null, null, {
                     uri: uri,
-                    ...rawMeta,
                 });
                 logger.info(`Queued non-file item ${storageItem.id} of type ${type} for enrichment`);
             } catch (err) {
@@ -327,7 +279,6 @@ export const createNonFileStorageItem = async (itemData) => {
                 await publishEnrichmentEvent(storageItem.id, "social_media", null, null, {
                     platform: metadata.platform,
                     uri: uri,
-                    ...rawMeta,
                 });
                 logger.info(`Queued social media item ${storageItem.id} for enrichment`);
             } catch (err) {
