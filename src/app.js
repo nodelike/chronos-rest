@@ -6,12 +6,18 @@ import storageRoutes from "./models/StorageItem/storageItem.routes.js";
 import personRoutes from "./models/Person/person.routes.js";
 import enrichmentRoutes from "./models/StorageItem/enrichment.routes.js";
 import { errorResponse, NotFoundError } from "./lib/helpers.js";
+import cors from "cors";
 
 const app = express();
 
 BigInt.prototype.toJSON = function() {
     return this.toString();
 };
+
+app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true
+  }))
 
 // Middlewares
 app.use(
