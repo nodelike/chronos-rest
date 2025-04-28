@@ -313,13 +313,24 @@ export const getPersonStorageItems = async (personId, userId, options = {}) => {
         }
 
         const skip = (page - 1) * limit;
+        
+        // Get the IDs of storage items associated with this person and user
+        const personStorageItems = await prisma.personStorageItem.findMany({
+            where: {
+                personId,
+                userId
+            },
+            select: {
+                storageItemId: true
+            }
+        });
+        
+        const storageItemIds = personStorageItems.map(item => item.storageItemId);
+        
         const where = { 
-            people: {
-                some: {
-                    personId,
-                    userId
-                }
-            } 
+            id: {
+                in: storageItemIds
+            }
         };
 
         if (type) {
@@ -336,7 +347,7 @@ export const getPersonStorageItems = async (personId, userId, options = {}) => {
         });
 
         return {
-            storageItems,
+            items: storageItems,
             metadata: {
                 page,
                 limit,

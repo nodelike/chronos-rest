@@ -1,7 +1,7 @@
 import { createPerson, getPersonById, getPeople, deletePerson, getPersonStorageItems } from "./person.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
-import { getPresignedUrl, extractKeyFromUri } from "../../lib/s3Service.js";
+import { getPresignedUrl, extractKeyFromUri, replaceWithPresignedUrls } from "../../lib/s3Service.js";
 
 /**
  * Create a new person
@@ -30,8 +30,9 @@ export const getPersonDetails = async (req, res, next) => {
     try {
         const { id } = req.params;
         const includeDetections = req.query.includeDetections === 'true';
+        const userId = req.user.id;
 
-        const person = await getPersonById(id, includeDetections);
+        const person = await getPersonById(id, userId, includeDetections);
 
         if (!person) {
             throw new NotFoundError(`Person with ID ${id} not found`);
@@ -58,8 +59,9 @@ export const getPersonDetails = async (req, res, next) => {
 export const getAllPeople = async (req, res, next) => {
     try {
         const { page, limit, name, includeDetections } = req.query;
+        const userId = req.user.id;
 
-        const result = await getPeople({
+        const result = await getPeople(userId, {
             page: page ? parseInt(page) : undefined,
             limit: limit ? parseInt(limit) : undefined,
             name,
@@ -96,8 +98,9 @@ export const getAllPeople = async (req, res, next) => {
 export const removePerson = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const userId = req.user.id;
 
-        const result = await deletePerson(id);
+        const result = await deletePerson(id, userId);
 
         if (!result.success) {
             return res.status(400).json(errorResponse(result.message, 400));
@@ -125,27 +128,11 @@ export const getPersonStorage = async (req, res, next) => {
         });
 
         // Generate presigned URLs for storage items
-        const processedItems = await Promise.all(result.storageItems.map(async (item) => {
-            const processedItem = { ...item };
-            
-            // Process main URI
-            const fileKey = extractKeyFromUri(processedItem.uri);
-            if (fileKey) {
-                processedItem.uri = await getPresignedUrl(fileKey);
-            }
-            
-            // Process thumbnail if it exists
-            if (processedItem.thumbnail) {
-                const thumbnailKey = extractKeyFromUri(processedItem.thumbnail);
-                if (thumbnailKey) {
-                    processedItem.thumbnail = await getPresignedUrl(thumbnailKey);
-                }
-            }
-
-            return processedItem;
+        const processedItems = await Promise.all(result.items.map(async (item) => {
+            return replaceWithPresignedUrls(item);
         }));
 
-        result.storageItems = processedItems;
+        result.items = processedItems;
 
         return res.status(200).json(successResponse("Person storage items retrieved successfully", result));
     } catch (error) {
