@@ -8,20 +8,21 @@ datasource db {
 }
 
 model User {
-  id                      String        @id @default(uuid())
-  email                   String        @unique
+  id                      String              @id @default(uuid())
+  email                   String              @unique
   username                String?
   password                String
-  isVerified              Boolean       @default(false)
+  isVerified              Boolean             @default(false)
   verificationCode        String?
-  verificationCodeExpires DateTime?     @db.Timestamptz(6)
-  token                   String?       @unique
+  verificationCodeExpires DateTime?           @db.Timestamptz(6)
+  token                   String?             @unique
   tokenExpiry             DateTime?
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
   deletedAt               DateTime?
   chronicles              Chronicle[]
   storageItems            StorageItem[]
+  personStorageItems      PersonStorageItem[]
 
   @@map("users")
 }
@@ -47,7 +48,6 @@ model StorageItem {
   source        ContentSource
   collectorType CollectorType?
   userId        String
-  personId      String?
   createdAt     DateTime           @default(now())
   processedAt   DateTime?
   deletedAt     DateTime?
@@ -55,7 +55,7 @@ model StorageItem {
   face          Face[]
   mediaMeta     MediaMeta[]
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  person        Person?            @relation(fields: [personId], references: [id], onDelete: Cascade)
+  people        PersonStorageItem[]
   socialMetas   SocialMeta[]       @relation("SocialMetaToStorageItem")
 
   @@index([userId, createdAt])
@@ -97,19 +97,19 @@ enum Gender {
 }
 
 model Person {
-  id               String           @id @default(uuid())
+  id               String             @id @default(uuid())
   name             String?
-  type             PersonType       @default(PERSON)
+  type             PersonType         @default(PERSON)
   gender           Gender?
   age              Int?
-  storageItems     StorageItem[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  storageItems     PersonStorageItem[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   deletedAt        DateTime?
   face             Face[]
   profilePicture   ProfilePicture?
-  relationsFrom    PersonRelation[] @relation("RelationFrom") 
-  relationsTo      PersonRelation[] @relation("RelationTo")
+  relationsFrom    PersonRelation[]   @relation("RelationFrom") 
+  relationsTo      PersonRelation[]   @relation("RelationTo")
   socialProfiles   SocialProfile[]
 
   @@map("people")
@@ -272,4 +272,18 @@ enum MetaType {
   CUSTOM_LABEL
   CONTENT_MODERATION
   OTHER
+}
+
+model PersonStorageItem {
+  personId     String
+  storageItemId String
+  userId       String
+  createdAt    DateTime    @default(now())
+  person       Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  storageItem  StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([personId, storageItemId])
+  @@index([userId])
+  @@map("person_storage_items")
 }

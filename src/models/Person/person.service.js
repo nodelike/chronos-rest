@@ -24,10 +24,21 @@ export const createPerson = async (name, gender, age, type = "PERSON", profileS3
 /**
  * Get a person by ID
  */
-export const getPersonById = async (id, includeDetections = false) => {
+export const getPersonById = async (id, userId, includeDetections = false) => {
     try {
-        const person = await prisma.person.findUnique({
-            where: { id },
+        if (!userId) {
+            throw new Error("userId is required to get a person");
+        }
+
+        const person = await prisma.person.findFirst({
+            where: { 
+                id,
+                storageItems: {
+                    some: {
+                        userId
+                    }
+                }
+            },
             include: {
                 profilePicture: includeDetections,
                 face: includeDetections ? {
@@ -36,7 +47,14 @@ export const getPersonById = async (id, includeDetections = false) => {
                     }
                 } : false,
                 socialProfiles: includeDetections,
-                storageItems: includeDetections
+                storageItems: includeDetections ? {
+                    where: {
+                        userId
+                    },
+                    include: {
+                        storageItem: true
+                    }
+                } : false
             }
         });
         
@@ -50,12 +68,22 @@ export const getPersonById = async (id, includeDetections = false) => {
 /**
  * Get all people, with optional filtering
  */
-export const getPeople = async (options = {}) => {
+export const getPeople = async (userId, options = {}) => {
     try {
         const { page = 1, limit = 20, name, includeDetections = false } = options;
 
+        if (!userId) {
+            throw new Error("userId is required to get people");
+        }
+
         const skip = (page - 1) * limit;
-        const where = {};
+        const where = {
+            storageItems: {
+                some: {
+                    userId
+                }
+            }
+        };
 
         if (name) {
             where.OR = [
@@ -80,7 +108,13 @@ export const getPeople = async (options = {}) => {
                 } : false,
                 socialProfiles: includeDetections,
                 storageItems: includeDetections ? {
-                    take: 5 // Limit to 5 most recent storage items for efficiency
+                    where: {
+                        userId
+                    },
+                    include: {
+                        storageItem: true
+                    },
+                    take: 5 // Limit to 5 most recent items for efficiency
                 } : false
             }
         });
@@ -103,8 +137,28 @@ export const getPeople = async (options = {}) => {
 /**
  * Delete a person and all related data
  */
-export const deletePerson = async (id) => {
+export const deletePerson = async (id, userId) => {
     try {
+        if (!userId) {
+            throw new Error("userId is required to delete a person");
+        }
+
+        // Verify this person belongs to the user
+        const person = await prisma.person.findFirst({
+            where: {
+                id,
+                storageItems: {
+                    some: {
+                        userId
+                    }
+                }
+            }
+        });
+
+        if (!person) {
+            throw new Error(`Person with ID ${id} not found or doesn't belong to this user`);
+        }
+
         // Delete all face detections for this person
         await prisma.face.deleteMany({
             where: { personId: id }
@@ -125,31 +179,51 @@ export const deletePerson = async (id) => {
             }
         });
 
-        // Update storageItems to remove personId reference
-        await prisma.storageItem.updateMany({
-            where: { personId: id },
-            data: { personId: null }
+        // Delete person-storage item associations for this user
+        await prisma.personStorageItem.deleteMany({
+            where: { 
+                personId: id,
+                userId 
+            }
         });
 
-        // Delete the person
-        await prisma.person.delete({
-            where: { id }
+        // Check if this person has associations with other users
+        const otherUserAssociations = await prisma.personStorageItem.findFirst({
+            where: {
+                personId: id,
+                NOT: {
+                    userId
+                }
+            }
         });
 
-        return { success: true, message: "Person deleted successfully" };
+        // Only delete the person if they're not associated with other users
+        if (!otherUserAssociations) {
+            // Delete the person
+            await prisma.person.delete({
+                where: { id }
+            });
+            return { success: true, message: "Person deleted successfully" };
+        }
+        
+        return { success: true, message: "Person associations removed for this user" };
     } catch (error) {
         logger.error(`Error deleting person ${id}:`, error);
         throw error;
     }
 };
 
-export const findOrCreatePerson = async (personId, name, gender, age, type, profileS3Key, profileS3Url) => {
+export const findOrCreatePerson = async (personId, name, gender, age, type, profileS3Key, profileS3Url, userId) => {
     try {
+        if (!userId) {
+            throw new Error("userId is required to find or create a person");
+        }
+        
         if (!personId) {
             const person = await createPerson(name, gender, age, type, profileS3Key, profileS3Url);
             return person;
         }
-        return await getPersonById(personId);
+        return await getPersonById(personId, userId);
     } catch (error) {
         logger.error(`Error finding or creating person with name ${name}:`, error);
         throw error;
@@ -159,22 +233,35 @@ export const findOrCreatePerson = async (personId, name, gender, age, type, prof
 /**
  * Add storage items to a person
  */
-export const addStorageItemsToPerson = async (personId, storageItemIds) => {
+export const addStorageItemsToPerson = async (personId, storageItemIds, userId) => {
     try {
         if (!Array.isArray(storageItemIds)) {
             storageItemIds = [storageItemIds];
         }
+
+        if (!userId) {
+            throw new Error("userId is required to add storage items to a person");
+        }
         
-        await prisma.storageItem.updateMany({
-            where: {
-                id: {
-                    in: storageItemIds
+        // Create entries in the join table for each storage item
+        const createPromises = storageItemIds.map(itemId => 
+            prisma.personStorageItem.upsert({
+                where: {
+                    personId_storageItemId: {
+                        personId,
+                        storageItemId: itemId
+                    }
+                },
+                update: {},
+                create: {
+                    personId,
+                    storageItemId: itemId,
+                    userId
                 }
-            },
-            data: {
-                personId
-            }
-        });
+            })
+        );
+        
+        await Promise.all(createPromises);
         
         return { success: true, message: "Storage items added to person successfully" };
     } catch (error) {
@@ -186,21 +273,24 @@ export const addStorageItemsToPerson = async (personId, storageItemIds) => {
 /**
  * Remove storage items from a person
  */
-export const removeStorageItemsFromPerson = async (personId, storageItemIds) => {
+export const removeStorageItemsFromPerson = async (personId, storageItemIds, userId) => {
     try {
         if (!Array.isArray(storageItemIds)) {
             storageItemIds = [storageItemIds];
         }
+
+        if (!userId) {
+            throw new Error("userId is required to remove storage items from a person");
+        }
         
-        await prisma.storageItem.updateMany({
+        // Delete entries from the join table
+        await prisma.personStorageItem.deleteMany({
             where: {
-                id: {
+                personId,
+                userId,
+                storageItemId: {
                     in: storageItemIds
-                },
-                personId
-            },
-            data: {
-                personId: null
+                }
             }
         });
         
@@ -214,12 +304,23 @@ export const removeStorageItemsFromPerson = async (personId, storageItemIds) => 
 /**
  * Get all storage items for a person
  */
-export const getPersonStorageItems = async (personId, options = {}) => {
+export const getPersonStorageItems = async (personId, userId, options = {}) => {
     try {
         const { page = 1, limit = 20, type } = options;
 
+        if (!userId) {
+            throw new Error("userId is required to get person's storage items");
+        }
+
         const skip = (page - 1) * limit;
-        const where = { personId };
+        const where = { 
+            personStorageItems: {
+                some: {
+                    personId,
+                    userId
+                }
+            } 
+        };
 
         if (type) {
             where.type = type;
