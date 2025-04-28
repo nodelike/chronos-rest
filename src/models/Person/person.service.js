@@ -35,7 +35,8 @@ export const getPersonById = async (id, includeDetections = false) => {
                         storageItem: true
                     }
                 } : false,
-                socialProfiles: includeDetections
+                socialProfiles: includeDetections,
+                storageItems: includeDetections
             }
         });
         
@@ -77,7 +78,10 @@ export const getPeople = async (options = {}) => {
                     },
                     take: 5 // Limit to 5 most recent detections for efficiency
                 } : false,
-                socialProfiles: includeDetections
+                socialProfiles: includeDetections,
+                storageItems: includeDetections ? {
+                    take: 5 // Limit to 5 most recent storage items for efficiency
+                } : false
             }
         });
 
@@ -121,6 +125,12 @@ export const deletePerson = async (id) => {
             }
         });
 
+        // Update storageItems to remove personId reference
+        await prisma.storageItem.updateMany({
+            where: { personId: id },
+            data: { personId: null }
+        });
+
         // Delete the person
         await prisma.person.delete({
             where: { id }
@@ -146,10 +156,106 @@ export const findOrCreatePerson = async (personId, name, gender, age, type, prof
     }
 };
 
+/**
+ * Add storage items to a person
+ */
+export const addStorageItemsToPerson = async (personId, storageItemIds) => {
+    try {
+        if (!Array.isArray(storageItemIds)) {
+            storageItemIds = [storageItemIds];
+        }
+        
+        await prisma.storageItem.updateMany({
+            where: {
+                id: {
+                    in: storageItemIds
+                }
+            },
+            data: {
+                personId
+            }
+        });
+        
+        return { success: true, message: "Storage items added to person successfully" };
+    } catch (error) {
+        logger.error(`Error adding storage items to person ${personId}:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Remove storage items from a person
+ */
+export const removeStorageItemsFromPerson = async (personId, storageItemIds) => {
+    try {
+        if (!Array.isArray(storageItemIds)) {
+            storageItemIds = [storageItemIds];
+        }
+        
+        await prisma.storageItem.updateMany({
+            where: {
+                id: {
+                    in: storageItemIds
+                },
+                personId
+            },
+            data: {
+                personId: null
+            }
+        });
+        
+        return { success: true, message: "Storage items removed from person successfully" };
+    } catch (error) {
+        logger.error(`Error removing storage items from person ${personId}:`, error);
+        throw error;
+    }
+};
+
+/**
+ * Get all storage items for a person
+ */
+export const getPersonStorageItems = async (personId, options = {}) => {
+    try {
+        const { page = 1, limit = 20, type } = options;
+
+        const skip = (page - 1) * limit;
+        const where = { personId };
+
+        if (type) {
+            where.type = type;
+        }
+
+        const totalCount = await prisma.storageItem.count({ where });
+
+        const storageItems = await prisma.storageItem.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { createdAt: "desc" }
+        });
+
+        return {
+            storageItems,
+            metadata: {
+                page,
+                limit,
+                totalCount,
+                totalPages: Math.ceil(totalCount / limit),
+            },
+        };
+    } catch (error) {
+        logger.error(`Error getting storage items for person ${personId}:`, error);
+        throw error;
+    }
+};
+
 export default {
     createPerson,
     getPersonById,
     getPeople,
     deletePerson,
-    findOrCreatePerson
+    findOrCreatePerson,
+    addStorageItemsToPerson,
+    removeStorageItemsFromPerson,
+    getPersonStorageItems
 }; 

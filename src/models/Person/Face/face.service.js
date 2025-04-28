@@ -34,6 +34,13 @@ export const createFace = async (face, storageItemId) => {
                 person: true
             },
         });
+
+        // Connect the storage item to the person
+        await prisma.storageItem.update({
+            where: { id: storageItemId },
+            data: { personId: person.id }
+        });
+
         return { success: true, message: "Face created successfully", face: createdFace };
     } catch (error) {
         logger.error(`Error creating face:`, error);

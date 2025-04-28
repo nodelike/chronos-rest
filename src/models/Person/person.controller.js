@@ -1,6 +1,7 @@
-import { createPerson, getPersonById, getPeople, deletePerson } from "./person.service.js";
+import { createPerson, getPersonById, getPeople, deletePerson, getPersonStorageItems } from "./person.service.js";
 import { successResponse, errorResponse, NotFoundError, BadRequestError } from "../../lib/helpers.js";
 import logger from "../../lib/logger.js";
+import { getPresignedUrl, extractKeyFromUri } from "../../lib/s3Service.js";
 
 /**
  * Create a new person
@@ -36,8 +37,17 @@ export const getPersonDetails = async (req, res, next) => {
             throw new NotFoundError(`Person with ID ${id} not found`);
         }
 
+        // Generate presigned URL for profile picture
+        if (person.profilePicture) {
+            const profilePicKey = extractKeyFromUri(person.profilePicture.s3Url);
+            if (profilePicKey) {
+                person.profilePicture.s3Url = await getPresignedUrl(profilePicKey);
+            }
+        }
+
         return res.status(200).json(successResponse("Person retrieved successfully", { person }));
     } catch (error) {
+        logger.error(`Error getting person details with presigned URLs:`, error);
         next(error);
     }
 };
@@ -56,8 +66,26 @@ export const getAllPeople = async (req, res, next) => {
             includeDetections: includeDetections === 'true'
         });
 
+        // Generate presigned URLs for profile pictures
+        const processedPeople = await Promise.all(result.people.map(async (person) => {
+            const processedPerson = { ...person };
+            
+            // Process profile picture if it exists
+            if (processedPerson.profilePicture) {
+                const profilePicKey = extractKeyFromUri(processedPerson.profilePicture.s3Url);
+                if (profilePicKey) {
+                    processedPerson.profilePicture.s3Url = await getPresignedUrl(profilePicKey);
+                }
+            }
+
+            return processedPerson;
+        }));
+
+        result.people = processedPeople;
+
         return res.status(200).json(successResponse("People retrieved successfully", result));
     } catch (error) {
+        logger.error("Error getting people with presigned URLs:", error);
         next(error);
     }
 };
@@ -81,9 +109,54 @@ export const removePerson = async (req, res, next) => {
     }
 };
 
+/**
+ * Get all storage items for a person
+ */
+export const getPersonStorage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { page, limit, type } = req.query;
+
+        const result = await getPersonStorageItems(id, {
+            page: page ? parseInt(page) : undefined,
+            limit: limit ? parseInt(limit) : undefined,
+            type
+        });
+
+        // Generate presigned URLs for storage items
+        const processedItems = await Promise.all(result.storageItems.map(async (item) => {
+            const processedItem = { ...item };
+            
+            // Process main URI
+            const fileKey = extractKeyFromUri(processedItem.uri);
+            if (fileKey) {
+                processedItem.uri = await getPresignedUrl(fileKey);
+            }
+            
+            // Process thumbnail if it exists
+            if (processedItem.thumbnail) {
+                const thumbnailKey = extractKeyFromUri(processedItem.thumbnail);
+                if (thumbnailKey) {
+                    processedItem.thumbnail = await getPresignedUrl(thumbnailKey);
+                }
+            }
+
+            return processedItem;
+        }));
+
+        result.storageItems = processedItems;
+
+        return res.status(200).json(successResponse("Person storage items retrieved successfully", result));
+    } catch (error) {
+        logger.error(`Error getting person storage items with presigned URLs:`, error);
+        next(error);
+    }
+};
+
 export default {
     createNewPerson,
     getPersonDetails,
     getAllPeople,
     removePerson,
+    getPersonStorage
 }; 

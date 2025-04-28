@@ -47,6 +47,7 @@ model StorageItem {
   source        ContentSource
   collectorType CollectorType?
   userId        String
+  personId      String?
   createdAt     DateTime           @default(now())
   processedAt   DateTime?
   deletedAt     DateTime?
@@ -54,6 +55,7 @@ model StorageItem {
   face          Face[]
   mediaMeta     MediaMeta[]
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  person        Person?            @relation(fields: [personId], references: [id], onDelete: Cascade)
   socialMetas   SocialMeta[]       @relation("SocialMetaToStorageItem")
 
   @@index([userId, createdAt])
@@ -100,7 +102,7 @@ model Person {
   type             PersonType       @default(PERSON)
   gender           Gender?
   age              Int?
-  storageItemId    String?          @unique
+  storageItems     StorageItem[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   deletedAt        DateTime?
