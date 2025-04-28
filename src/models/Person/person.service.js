@@ -314,7 +314,7 @@ export const getPersonStorageItems = async (personId, userId, options = {}) => {
 
         const skip = (page - 1) * limit;
         const where = { 
-            personStorageItems: {
+            people: {
                 some: {
                     personId,
                     userId

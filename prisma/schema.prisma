@@ -21,8 +21,8 @@ model User {
   updatedAt               DateTime            @updatedAt
   deletedAt               DateTime?
   chronicles              Chronicle[]
-  storageItems            StorageItem[]
   personStorageItems      PersonStorageItem[]
+  storageItems            StorageItem[]
 
   @@map("users")
 }
@@ -38,7 +38,7 @@ model Utils {
 }
 
 model StorageItem {
-  id            String             @id @default(uuid())
+  id            String              @id @default(uuid())
   uri           String
   thumbnail     String?
   fileName      String
@@ -48,15 +48,15 @@ model StorageItem {
   source        ContentSource
   collectorType CollectorType?
   userId        String
-  createdAt     DateTime           @default(now())
+  createdAt     DateTime            @default(now())
   processedAt   DateTime?
   deletedAt     DateTime?
   chronicleRefs ChronicleStorage[]
   face          Face[]
   mediaMeta     MediaMeta[]
-  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   people        PersonStorageItem[]
-  socialMetas   SocialMeta[]       @relation("SocialMetaToStorageItem")
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  socialMetas   SocialMeta[]        @relation("SocialMetaToStorageItem")
 
   @@index([userId, createdAt])
   @@index([type])
@@ -81,46 +81,40 @@ model Face {
   emotions      String[]
   age           Int?
   gender        Gender?
-  storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
   storageItemId String
-  person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
   personId      String
   createdAt     DateTime    @default(now())
+  person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
 
   @@map("face_detections")
 }
 
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
 model Person {
-  id               String             @id @default(uuid())
-  name             String?
-  type             PersonType         @default(PERSON)
-  gender           Gender?
-  age              Int?
-  storageItems     PersonStorageItem[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  deletedAt        DateTime?
-  face             Face[]
-  profilePicture   ProfilePicture?
-  relationsFrom    PersonRelation[]   @relation("RelationFrom") 
-  relationsTo      PersonRelation[]   @relation("RelationTo")
-  socialProfiles   SocialProfile[]
+  id             String              @id @default(uuid())
+  name           String?
+  type           PersonType          @default(PERSON)
+  gender         Gender?
+  age            Int?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  deletedAt      DateTime?
+  face           Face[]
+  relationsFrom  PersonRelation[]    @relation("RelationFrom")
+  relationsTo    PersonRelation[]    @relation("RelationTo")
+  storageItems   PersonStorageItem[]
+  profilePicture ProfilePicture?
+  socialProfiles SocialProfile[]
 
   @@map("people")
 }
 
 model ProfilePicture {
-  id String @id @default(uuid())
-  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
   personId String @unique
   s3Key    String
   s3Url    String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@map("profile_pictures")
 }
@@ -210,6 +204,26 @@ model Chronicle {
   @@map("chronicles")
 }
 
+model PersonStorageItem {
+  personId      String
+  storageItemId String
+  userId        String
+  createdAt     DateTime    @default(now())
+  person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([personId, storageItemId])
+  @@index([userId])
+  @@map("person_storage_items")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
 enum ChronicleItemType {
   PHOTO
   VIDEO
@@ -272,18 +286,4 @@ enum MetaType {
   CUSTOM_LABEL
   CONTENT_MODERATION
   OTHER
-}
-
-model PersonStorageItem {
-  personId     String
-  storageItemId String
-  userId       String
-  createdAt    DateTime    @default(now())
-  person       Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
-  storageItem  StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([personId, storageItemId])
-  @@index([userId])
-  @@map("person_storage_items")
 }

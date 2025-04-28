@@ -116,8 +116,9 @@ export const getPersonStorage = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { page, limit, type } = req.query;
+        const userId = req.user.id;
 
-        const result = await getPersonStorageItems(id, {
+        const result = await getPersonStorageItems(id, userId, {
             page: page ? parseInt(page) : undefined,
             limit: limit ? parseInt(limit) : undefined,
             type

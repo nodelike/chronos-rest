@@ -93,7 +93,7 @@ export const getStorageItemById = async (id) => {
 
 export const getStorageItems = async (options = {}) => {
     try {
-        const { page = 1, limit = 20, type, userId, source, startDate, endDate, keyword } = options;
+        const { page = 1, limit = 20, type, userId, source, startDate, endDate, keyword, personId } = options;
 
         const skip = (page - 1) * limit;
 
@@ -102,6 +102,16 @@ export const getStorageItems = async (options = {}) => {
         if (type) where.type = type;
         if (userId) where.userId = userId;
         if (source) where.source = source;
+
+        // If looking for items associated with a specific person
+        if (personId) {
+            where.people = {
+                some: {
+                    personId,
+                    ...(userId ? { userId } : {})
+                }
+            };
+        }
 
         if (startDate || endDate) {
             where.createdAt = {};
@@ -124,6 +134,9 @@ export const getStorageItems = async (options = {}) => {
             skip,
             take: limit,
             orderBy: { createdAt: "desc" },
+            include: {
+                people: true
+            }
         });
 
         // Add presigned URLs to all items and their thumbnails
