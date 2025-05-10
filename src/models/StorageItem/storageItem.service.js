@@ -4,6 +4,7 @@ import { uploadFile, deleteFile, extractKeyFromUri, replaceWithPresignedUrls } f
 import { generateThumbnail, processImageFormat } from "../../lib/imageMetadataService.js";
 import { publishEnrichmentEvent } from "../../lib/eventBridgeClient.js";
 import { StorageItemTypes } from "../../enums/storageItemTypes.js";
+import { cleanupOrphanedPeople } from "../Person/cleanup.service.js";
 
 export const createStorageItem = async (buffer, fileInfo, userId) => {
     try {
@@ -244,6 +245,10 @@ export const deleteStorageItem = async (id, userId) => {
 
         await prisma.storageItem.delete({
             where: { id },
+        });
+
+        cleanupOrphanedPeople().catch((err) => {
+            logger.error("Background cleanup error:", err);
         });
 
         return { success: true, message: "Storage item deleted successfully" };

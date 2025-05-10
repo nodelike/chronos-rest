@@ -294,7 +294,10 @@ export const removeStorageItemsFromPerson = async (personId, storageItemIds, use
             }
         });
         
-        return { success: true, message: "Storage items removed from person successfully" };
+        return { 
+            success: true, 
+            message: "Storage items removed from person successfully"
+        };
     } catch (error) {
         logger.error(`Error removing storage items from person ${personId}:`, error);
         throw error;
