@@ -23,6 +23,7 @@ model User {
   chronicles              Chronicle[]
   personStorageItems      PersonStorageItem[]
   storageItems            StorageItem[]
+  faces                   Face[]
 
   @@map("users")
 }
@@ -83,10 +84,13 @@ model Face {
   gender        Gender?
   storageItemId String
   personId      String
+  userId        String      @map("user_id")
   createdAt     DateTime    @default(now())
   person        Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
   storageItem   StorageItem @relation(fields: [storageItemId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("face_detections")
 }
 

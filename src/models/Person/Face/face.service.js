@@ -20,6 +20,10 @@ export const createFace = async (face, storageItemId) => {
             throw new Error(`Storage item ${storageItemId} not found`);
         }
 
+        if (!storageItem.userId) {
+            throw new Error(`Storage item ${storageItemId} has no associated user`);
+        }
+
         const person = await findOrCreatePerson(
             personId, 
             name, 
@@ -45,6 +49,11 @@ export const createFace = async (face, storageItemId) => {
                 person: {
                     connect: {
                         id: person.id,
+                    },
+                },
+                user: {
+                    connect: {
+                        id: storageItem.userId,
                     },
                 },
             },

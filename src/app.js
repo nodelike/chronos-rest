@@ -10,25 +10,24 @@ import cors from "cors";
 
 const app = express();
 
-BigInt.prototype.toJSON = function() {
+BigInt.prototype.toJSON = function () {
     return this.toString();
 };
 
-const allowedOrigins = [
-    "http://localhost:3000",
-    "https://chronos-staging.nodelike.com",
-];
+const allowedOrigins = ["http://localhost:3000", "https://chronos-staging.nodelike.com"];
 
-app.use(cors({
-    origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-    credentials: true
-  }))
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
+        credentials: true,
+    })
+);
 
 // Middlewares
 app.use(
