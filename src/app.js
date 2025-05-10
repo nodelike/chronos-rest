@@ -16,7 +16,7 @@ BigInt.prototype.toJSON = function() {
 
 const allowedOrigins = [
     "http://localhost:8080",
-    "https://chrnos-staging.nodelike.com",
+    "https://chronos-staging.nodelike.com",
 ];
 
 app.use(cors({
