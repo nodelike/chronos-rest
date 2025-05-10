@@ -23,21 +23,43 @@ export const createProfilePicture = async (personId, s3Key, s3Url) => {
     }
 };
 
-export const getProfilePictures = async () => {
+export const getProfilePictures = async (userId) => {
     try {
-        const profilePictures = await prisma.profilePicture.findMany();
-        
+        if (!userId) {
+            throw new Error("UserId is required");
+        }
+
+        const profilePictures = await prisma.profilePicture.findMany({
+            where: {
+                person: {
+                    face: {
+                        some: {
+                            userId: userId,
+                        },
+                    },
+                },
+            },
+            include: {
+                person: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+            },
+        });
+
         // Add presigned URLs to each profile picture
         const profilePicturesWithUrls = await Promise.all(
             profilePictures.map(async (profilePicture) => {
                 const presignedUrl = await getPresignedUrl(profilePicture.s3Key);
                 return {
                     ...profilePicture,
-                    uri: presignedUrl
+                    uri: presignedUrl,
                 };
             })
         );
-        
+
         return profilePicturesWithUrls;
     } catch (error) {
         logger.error("Error getting profile pictures:", error);
@@ -50,15 +72,15 @@ export const getProfilePictureByPersonId = async (personId) => {
         const profilePicture = await prisma.profilePicture.findUnique({
             where: { personId },
         });
-        
+
         if (profilePicture) {
             const presignedUrl = await getPresignedUrl(profilePicture.s3Key);
             return {
                 ...profilePicture,
-                uri: presignedUrl
+                uri: presignedUrl,
             };
         }
-        
+
         return profilePicture;
     } catch (error) {
         logger.error(`Error getting profile picture for person ${personId}:`, error);
