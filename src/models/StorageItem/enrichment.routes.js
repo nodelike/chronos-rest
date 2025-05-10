@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.use(enrichmentAuth);
 
-router.get("/unique-faces", getProfilePicturesHandler);
+router.get("/unique-faces/:userId", getProfilePicturesHandler);
 router.put("/:id", processEnrichmentHandler);
 
 export default router;

@@ -22,12 +22,12 @@ export const processEnrichmentHandler = async (req, res, next) => {
 
 export const getProfilePicturesHandler = async (req, res, next) => {
     try {
-        const userId = req.user.id;
+        const { userId } = req.params;
 
         if (!userId) {
             return res.status(400).json(errorResponse("User ID is required", 400));
         }
-
+        
         const profilePictures = await getProfilePictures(userId);
         return res.status(200).json(successResponse("Profile pictures retrieved successfully", profilePictures));
     } catch (error) {
