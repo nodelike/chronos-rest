@@ -1,7 +1,7 @@
 import prisma from "../../lib/prisma.js";
 import logger from "../../lib/logger.js";
 import { uploadFile, deleteFile, extractKeyFromUri, replaceWithPresignedUrls } from "../../lib/s3Service.js";
-import { generateThumbnail } from "../../lib/imageMetadataService.js";
+import { generateThumbnail, processImageFormat } from "../../lib/imageMetadataService.js";
 import { publishEnrichmentEvent } from "../../lib/eventBridgeClient.js";
 import { StorageItemTypes } from "../../enums/storageItemTypes.js";
 
@@ -11,19 +11,37 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
 
         const type = determineItemType(mimetype);
 
-        const s3Result = await uploadFile(buffer, originalname, mimetype, type.toLowerCase());
-
+        let s3Result;
         let thumbnailResult;
+
         if (type === StorageItemTypes.PHOTO) {
-            const thumbnail = await generateThumbnail(buffer);
-            thumbnailResult = await uploadFile(thumbnail, `thumb_${originalname}`, mimetype, "thumbnails");
+            // Process image format if it's a photo
+            const { buffer: processedBuffer, format, contentType } = await processImageFormat(buffer);
+
+            // Create a new filename with the correct extension
+            const processedName = originalname.split(".").slice(0, -1).join(".") + "." + format;
+
+            // Upload the processed image
+            s3Result = await uploadFile(processedBuffer, processedName, contentType, type.toLowerCase());
+
+            // Generate thumbnail from the processed buffer
+            const thumbnail = await generateThumbnail(processedBuffer);
+            thumbnailResult = await uploadFile(thumbnail, `thumb_${processedName}`, contentType, "thumbnails");
+        } else {
+            // For non-photo files, use the original approach
+            s3Result = await uploadFile(buffer, originalname, mimetype, type.toLowerCase());
+
+            if (type === StorageItemTypes.PHOTO) {
+                const thumbnail = await generateThumbnail(buffer);
+                thumbnailResult = await uploadFile(thumbnail, `thumb_${originalname}`, mimetype, "thumbnails");
+            }
         }
 
         const storageItem = await prisma.storageItem.create({
             data: {
                 uri: s3Result.url,
                 fileName: originalname,
-                thumbnail: thumbnailResult.url,
+                thumbnail: thumbnailResult?.url,
                 fileSize: size,
                 mimeType: mimetype,
                 type,
@@ -108,8 +126,8 @@ export const getStorageItems = async (options = {}) => {
             where.people = {
                 some: {
                     personId,
-                    ...(userId ? { userId } : {})
-                }
+                    ...(userId ? { userId } : {}),
+                },
             };
         }
 
@@ -121,10 +139,7 @@ export const getStorageItems = async (options = {}) => {
 
         // Enhanced keyword search for both file and non-file items
         if (keyword) {
-            where.OR = [
-                { fileName: { contains: keyword, mode: "insensitive" } },
-                { uri: { contains: keyword, mode: "insensitive" } },
-            ];
+            where.OR = [{ fileName: { contains: keyword, mode: "insensitive" } }, { uri: { contains: keyword, mode: "insensitive" } }];
         }
 
         const totalCount = await prisma.storageItem.count({ where });
@@ -135,8 +150,8 @@ export const getStorageItems = async (options = {}) => {
             take: limit,
             orderBy: { createdAt: "desc" },
             include: {
-                people: true
-            }
+                people: true,
+            },
         });
 
         // Add presigned URLs to all items and their thumbnails

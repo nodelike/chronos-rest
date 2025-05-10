@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } fro
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { v4 as uuidv4 } from "uuid";
 import logger from "./logger.js";
+import { processImageFormat } from "./imageMetadataService.js";
 import "dotenv/config";
 
 const s3Client = new S3Client({
@@ -187,6 +188,39 @@ export const getObjectByUri = async (uri) => {
     }
 };
 
+export const uploadImageWithFormatProcessing = async (buffer, originalName, folder = "images") => {
+    try {
+        // Process the image to the correct format
+        const { buffer: processedBuffer, format, contentType } = await processImageFormat(buffer);
+
+        // Generate a unique filename with the correct extension
+        const fileName = `${folder}/${uuidv4()}.${format}`;
+
+        // Upload the processed image
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: fileName,
+            Body: processedBuffer,
+            ContentType: contentType,
+        });
+
+        const uploadResult = await s3Client.send(command);
+        const url = `${process.env.AWS_S3_ENDPOINT}/${bucketName}/${fileName}`;
+
+        return {
+            success: true,
+            url,
+            key: fileName,
+            bucket: bucketName,
+            format,
+            etag: uploadResult.ETag,
+        };
+    } catch (error) {
+        logger.error("Error uploading processed image to S3:", error);
+        throw error;
+    }
+};
+
 export default {
     uploadFile,
     uploadBuffer,
@@ -195,4 +229,5 @@ export default {
     extractKeyFromUri,
     replaceWithPresignedUrls,
     getObjectByUri,
+    uploadImageWithFormatProcessing,
 };
