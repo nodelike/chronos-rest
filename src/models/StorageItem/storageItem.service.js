@@ -58,7 +58,7 @@ export const createStorageItem = async (buffer, fileInfo, userId) => {
             const mediaType = type.toLowerCase();
 
             try {
-                const publishResult = await publishEnrichmentEvent(storageItem.id, mediaType, s3Result.bucket, s3Result.key, {
+                const publishResult = await publishEnrichmentEvent(storageItem.id, userId, mediaType, s3Result.bucket, s3Result.key, {
                     mimeType: mimetype,
                     fileName: originalname,
                     fileSize: size,

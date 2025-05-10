@@ -25,10 +25,11 @@ const eventBridgeClient = new EventBridgeClient({
  * @param {Object} metadata - Optional initial metadata
  * @returns {boolean} - Whether the publish was successful
  */
-export const publishEnrichmentEvent = async (itemId, mediaType, s3Bucket, s3Key, metadata = {}) => {
+export const publishEnrichmentEvent = async (itemId, userId, mediaType, s3Bucket, s3Key, metadata = {}) => {
     try {
         const detail = {
             itemId,
+            userId,
             mediaType,
             s3Bucket,
             s3Key,
